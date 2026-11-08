@@ -1534,6 +1534,13 @@ const allyTags = (fl, compact) => flAllies(fl).map((a,i) => {
   const opA = ALLY_OF[alOf(fl[0])] === a;
   return `<span class="ally a-${a}${opA?"":" cs"}" title="${ALLY_DEF[a].name}${opA?"":"（共同運航便名）"}">${compact ? ALLY_DEF[a].short.split(" ")[0] : ALLY_DEF[a].short}</span>`;
 }).join("");
+// 路線一覧用：加盟社が運航する便があれば塗りつぶし、共同運航の便名だけなら枠のみ
+function routeAllyTags(flights){
+  const all = [], op = new Set();
+  flights.forEach(f => { flAllies(f.fl).forEach(a => { if (!all.includes(a)) all.push(a); }); const a0 = ALLY_OF[alOf(f.fl[0])]; if (a0) op.add(a0); });
+  all.sort((a,b) => op.has(b) - op.has(a));
+  return all.map(a => `<span class="ally a-${a}${op.has(a)?"":" cs"}" title="${ALLY_DEF[a].name}${op.has(a)?"":"（加盟社の共同運航便名のみ。運航会社は非加盟）"}">${ALLY_DEF[a].short}</span>`).join("");
+}
 let allyFilter = "all";
 function allyFilterBar(flights, rerender){
   const present = ["star","ow","st"].filter(a => flights.some(f => flAllies(f.fl).includes(a)));
@@ -1813,7 +1820,7 @@ function renderList(){
     if (!rows.length) h = `<div class="empty">定期便の国内線はありません。</div>`;
     rows.forEach(r => {
       const fls = TT[current]&&TT[current][r.to] ? TT[current][r.to].flatMap(f=>f.fl) : r.al.split("・").map(n => ({"JAL":"JAL1","ANA":"ANA1","JTA":"JTA1"}[n]||"X"));
-      h += `<div class="row tap" data-go="${r.to}"><div class="dst"><b>${AIRPORTS[r.to][0]}</b><div class="al">${r.al}</div><div class="allyRow">${allyTags(fls.length?fls:["X"], false).replace(/ cs"/g,'"')}</div></div>${freqBadge(r.f)}<span class="go">›</span></div>`; });
+      h += `<div class="row tap" data-go="${r.to}"><div class="dst"><b>${AIRPORTS[r.to][0]}</b><div class="al">${r.al}</div><div class="allyRow">${TT[current]&&TT[current][r.to] ? routeAllyTags(TT[current][r.to]) : allyTags(fls.length?fls:["X"], false)}</div></div>${freqBadge(r.f)}<span class="go">›</span></div>`; });
   } else {
     const rows = (INTL[current]||[]).map((r,i)=>({city:r[0],cty:r[1],al:r[2],f:parseFreq(r[3]),tt:r[4],idx:i}));
     if (!rows.length) h = `<div class="empty">現在、定期の国際線はありません（チャーター便を除く）。</div>`;
@@ -1840,7 +1847,7 @@ function renderList(){
       h += `<div class="region" id="rg-${g}">${g}</div>`;
       Object.entries(byRegion[g]).sort((a,b)=>score(b[1])-score(a[1])).forEach(([cty, rs]) => {
         h += `<div class="grp">${cty}</div>`;
-        rs.sort((a,b)=>b.f.score-a.f.score).forEach(r => { h += r.tt ? `<div class="row tap" data-intl="${r.idx}"><div class="dst"><b>${r.city}</b><div class="al">${r.al}</div><div class="allyRow">${allyTags(r.tt.flights.flatMap(f=>f.fl)).replace(/ cs"/g,'"')}</div></div><span class="freq ${r.tt.planned?"p":r.tt.badge?"w":"d"}">${r.tt.badge || r.tt.flights.length+"便"}</span><span class="go">›</span></div>` : `<div class="row"><div class="dst"><b>${r.city}</b><div class="al">${r.al}</div></div>${freqBadge(r.f)}</div>`; });
+        rs.sort((a,b)=>b.f.score-a.f.score).forEach(r => { h += r.tt ? `<div class="row tap" data-intl="${r.idx}"><div class="dst"><b>${r.city}</b><div class="al">${r.al}</div><div class="allyRow">${routeAllyTags(r.tt.flights)}</div></div><span class="freq ${r.tt.planned?"p":r.tt.badge?"w":"d"}">${r.tt.badge || r.tt.flights.length+"便"}</span><span class="go">›</span></div>` : `<div class="row"><div class="dst"><b>${r.city}</b><div class="al">${r.al}</div></div>${freqBadge(r.f)}</div>`; });
       });
     });
   }
