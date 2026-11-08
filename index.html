@@ -110,6 +110,18 @@ svg{width:100%;height:100%;display:block}
 .filters button.a-btn-star.on{background:#1b1b1b;color:#f3d36b}
 .filters button.a-btn-ow.on{background:#5b2a86;border-color:#5b2a86}
 .filters button.a-btn-st.on{background:#0a5ea8;border-color:#0a5ea8}
+
+@media (min-width:900px){
+  #sheet{left:auto;right:14px;top:14px;bottom:14px;width:430px;max-height:none;border-radius:16px;transform:translateX(calc(100% + 30px));box-shadow:0 8px 30px rgba(0,0,0,.18)}
+  #sheet.open,#sheet.mini{transform:none}
+  .grab{display:none}
+  .ctrls{right:auto;left:14px;top:auto;bottom:18px}
+  .hint{max-width:420px}
+  .row.tap:hover,.fl:hover{background:#f3f7ff}
+  .row.tap,.filters button,.tab,.btn,.back,.closeBtn{cursor:pointer}
+  #mapWrap{cursor:grab}
+  #mapWrap:active{cursor:grabbing}
+}
 </style>
 </head>
 <body>
@@ -1577,10 +1589,13 @@ Object.entries(AIRPORTS).forEach(([code, [name, lat, lon, major]]) => {
 let vb = {x:0, y:0, w:W, h:H};
 const wrap = document.getElementById("mapWrap");
 function fitAll(){
-  const r = wrap.getBoundingClientRect(), ar = r.width / r.height;
+  const r = wrap.getBoundingClientRect();
+  const desk = isDesk() && !!current;
+  const vw = desk ? r.width - 450 : r.width, vh = r.height;
   let w = W, h = H;
-  if (w/h > ar) h = w/ar; else w = h*ar;
-  vb = {x:(W-w)/2, y:(H-h)/2 - h*0.04, w, h}; apply();
+  if (w/h > vw/vh) h = w*vh/vw; else w = h*vw/vh;
+  const k = w / vw;
+  vb = {x:(W-w)/2, y:(H-h)/2 - h*0.02, w:r.width*k, h:r.height*k}; apply();
 }
 function scale(){ return wrap.getBoundingClientRect().width / vb.w; }
 function apply(){
@@ -1640,7 +1655,7 @@ const centerXY = () => { const r = wrap.getBoundingClientRect(); return [r.left+
 document.getElementById("zin").onclick = () => zoomAt(1.5, ...centerXY());
 document.getElementById("zout").onclick = () => zoomAt(1/1.5, ...centerXY());
 document.getElementById("zreset").onclick = fitAll;
-window.addEventListener("resize", apply);
+let rsT; window.addEventListener("resize", () => { clearTimeout(rsT); rsT = setTimeout(() => { if (current && routeDest) fitCodes([current, routeDest]); else if (current) fitRoutes(); else fitAll(); }, 150); });
 
 /* ---------- 選択と表示 ---------- */
 let current = null, tab = "dom";
@@ -1660,16 +1675,21 @@ function select(code){
   if (!noFit) fitRoutes(); noFit = false;
 }
 let noFit = false;
-function fitRoutes(){
-  const codes = [current, ...DOM[current].map(r=>r.to)];
-  const xy = codes.map(c=>P(AIRPORTS[c][2],AIRPORTS[c][1]));
-  let x0=Math.min(...xy.map(p=>p[0])), x1=Math.max(...xy.map(p=>p[0])), y0=Math.min(...xy.map(p=>p[1])), y1=Math.max(...xy.map(p=>p[1]));
+function isDesk(){ return window.innerWidth >= 900; }
+function fitBox(x0,x1,y0,y1){
+  const r = wrap.getBoundingClientRect();
+  const desk = isDesk() && !!current;
+  const vw = desk ? r.width - 450 : r.width;      // PCは右側に一覧パネル
+  const vh = desk ? r.height : r.height * 0.40;    // スマホは下に一覧パネル
   const pad = 40; x0-=pad; x1+=pad*1.6; y0-=pad; y1+=pad;
-  const r = wrap.getBoundingClientRect(); const visH = r.height*0.40; // シート上の見える部分
   let w = Math.max(x1-x0, 160), h = Math.max(y1-y0, 160);
-  const ar = r.width / visH; if (w/h > ar) h = w/ar; else w = h*ar;
-  const fullH = w * r.height / r.width;
-  vb = {x:(x0+x1)/2 - w/2, y:(y0+y1)/2 - h/2, w, h: fullH}; apply();
+  if (w/h > vw/vh) h = w*vh/vw; else w = h*vw/vh;
+  const k = w / vw;
+  vb = {x:(x0+x1)/2 - w/2, y:(y0+y1)/2 - h/2, w: r.width*k, h: r.height*k}; apply();
+}
+function fitRoutes(){
+  const xy = [current, ...DOM[current].map(r=>r.to)].map(c=>P(AIRPORTS[c][2],AIRPORTS[c][1]));
+  fitBox(Math.min(...xy.map(p=>p[0])), Math.max(...xy.map(p=>p[0])), Math.min(...xy.map(p=>p[1])), Math.max(...xy.map(p=>p[1])));
 }
 function drawRoutes(){
   routeG.innerHTML = "";
@@ -1835,12 +1855,7 @@ function renderIntl(){
 }
 function fitCodes(codes){
   const xy = codes.map(c=>P(AIRPORTS[c][2],AIRPORTS[c][1]));
-  let x0=Math.min(...xy.map(p=>p[0])), x1=Math.max(...xy.map(p=>p[0])), y0=Math.min(...xy.map(p=>p[1])), y1=Math.max(...xy.map(p=>p[1]));
-  const pad = 40; x0-=pad; x1+=pad*1.6; y0-=pad; y1+=pad;
-  const r = wrap.getBoundingClientRect(); const visH = r.height*0.40;
-  let w = Math.max(x1-x0, 160), h = Math.max(y1-y0, 160);
-  const ar = r.width / visH; if (w/h > ar) h = w/ar; else w = h*ar;
-  vb = {x:(x0+x1)/2 - w/2, y:(y0+y1)/2 - h/2, w, h: w * r.height / r.width}; apply();
+  fitBox(Math.min(...xy.map(p=>p[0])), Math.max(...xy.map(p=>p[0])), Math.min(...xy.map(p=>p[1])), Math.max(...xy.map(p=>p[1])));
 }
 document.getElementById("sBack").onclick = () => { const wasIntl = !!intlRoute && !routeDest; intlRoute = null; if (wasIntl) { tab = "intl"; noFit = true; } select(current); };
 function focusOn(code){
