@@ -1,0 +1,17 @@
+{
+  "name": "空旅マップ",
+  "short_name": "空旅マップ",
+  "description": "日本の空港をタップすると、国内線・国際線の路線、便名、時刻、アライアンスがわかる地図アプリ",
+  "lang": "ja",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#eef3f8",
+  "theme_color": "#3b8de0",
+  "icons": [
+    {"src": "icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}

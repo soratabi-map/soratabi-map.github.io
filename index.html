@@ -1,0 +1,1869 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>空旅マップ</title>
+<meta name="theme-color" content="#3b8de0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="空旅マップ">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{
+  --bg:#eef3f8; --sea:#dce8f3; --land:#ffffff; --landStroke:#b9c7d6;
+  --ink:#1c2733; --sub:#5b6b7c; --line:#e3e9ef;
+  --accent:#e2583e; --dom:#2f6fdb; --intl:#9b3fd1;
+  --daily:#1f9d61; --weekly:#d9851a;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",Meiryo,sans-serif;overflow:hidden}
+#app{position:fixed;inset:0;display:flex;flex-direction:column}
+header{padding:10px 12px 8px;background:#fff;border-bottom:1px solid var(--line);z-index:5}
+header h1{font-size:16px;margin:0 0 6px;font-weight:700;letter-spacing:.02em}
+.searchRow{display:flex;gap:6px}
+#q{flex:1;font-size:15px;padding:8px 10px;border:1px solid #cfd8e2;border-radius:10px;outline:none;background:#f7f9fb}
+#q:focus{border-color:var(--dom);background:#fff}
+#sugg{position:absolute;left:12px;right:12px;top:78px;background:#fff;border:1px solid #cfd8e2;border-radius:10px;
+  box-shadow:0 8px 24px rgba(0,0,0,.12);max-height:50vh;overflow:auto;display:none;z-index:20}
+#sugg div{padding:10px 12px;border-bottom:1px solid var(--line);font-size:14px}
+#sugg div:active{background:#eef4ff}
+#sugg small{color:var(--sub);margin-left:6px}
+#mapWrap{position:relative;flex:1;overflow:hidden;background:var(--sea);touch-action:none}
+svg{width:100%;height:100%;display:block}
+.land{fill:var(--land);stroke:var(--landStroke);stroke-width:1;vector-effect:non-scaling-stroke}
+.ap{fill:var(--dom);stroke:#fff;vector-effect:non-scaling-stroke;stroke-width:1.5;cursor:pointer}
+.ap.small{fill:#6f8db3}
+.ap.dim{opacity:.25}
+.ap.dest{fill:var(--accent)}
+.ap.sel{fill:var(--accent);stroke:#fff;stroke-width:2.5}
+.lbl{font-size:11px;fill:#33475b;paint-order:stroke;stroke:#fff;stroke-width:3px;stroke-linejoin:round;pointer-events:none;font-weight:600}
+.lbl.dim{opacity:.2}
+.route{fill:none;stroke:var(--accent);stroke-linecap:round;vector-effect:non-scaling-stroke;opacity:.75;pointer-events:none}
+.ctrls{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px;z-index:4}
+.ctrls button{width:38px;height:38px;border-radius:10px;border:1px solid #cfd8e2;background:#fff;font-size:18px;color:var(--ink);box-shadow:0 2px 6px rgba(0,0,0,.08)}
+.hint{position:absolute;left:10px;top:10px;background:rgba(255,255,255,.92);border-radius:10px;padding:7px 10px;font-size:12px;color:var(--sub);z-index:4;max-width:62%}
+/* sheet */
+#sheet{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:16px 16px 0 0;box-shadow:0 -6px 24px rgba(0,0,0,.14);
+  transform:translateY(100%);transition:transform .25s ease;z-index:10;max-height:62%;display:flex;flex-direction:column}
+#sheet.open{transform:translateY(0)}
+#sheet.mini{transform:translateY(calc(100% - 96px))}
+.grab{width:42px;height:5px;border-radius:3px;background:#cfd8e2;margin:8px auto 4px}
+.sheetHead{padding:2px 14px 8px;display:flex;align-items:flex-start;gap:8px}
+.sheetHead h2{margin:0;font-size:18px;line-height:1.3}
+.sheetHead .code{font-size:12px;color:var(--sub);font-weight:600;letter-spacing:.05em}
+.sheetHead .meta{font-size:12px;color:var(--sub);margin-top:2px}
+.closeBtn{margin-left:auto;border:none;background:#f0f3f6;border-radius:50%;width:32px;height:32px;font-size:16px;color:var(--sub);flex:none}
+.tabs{display:flex;gap:6px;padding:0 14px 8px}
+.tab{flex:1;padding:8px 6px;border-radius:10px;border:1px solid #d6dee7;background:#f7f9fb;font-size:14px;font-weight:600;color:var(--sub)}
+.tab.on{background:var(--dom);border-color:var(--dom);color:#fff}
+.tab.on.intl{background:var(--intl);border-color:var(--intl)}
+.list{overflow:auto;padding:0 10px 18px;-webkit-overflow-scrolling:touch}
+.region{font-size:14px;font-weight:800;color:#fff;background:var(--intl);border-radius:8px;padding:6px 10px;margin:14px 2px 2px}
+.regionBar{position:sticky;top:0;background:#fff;z-index:2;padding-top:4px}
+.grp{font-size:12px;color:var(--sub);font-weight:700;margin:10px 4px 4px}
+.row{display:flex;align-items:center;gap:10px;padding:10px 6px;border-bottom:1px solid var(--line)}
+.row.tap:active{background:#f3f7ff}
+.row .dst{flex:1;min-width:0}
+.row .dst b{font-size:15px}
+.row .dst .al{font-size:12px;color:var(--sub);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.freq{flex:none;font-size:12px;font-weight:700;padding:4px 8px;border-radius:999px;white-space:nowrap}
+.freq.d{background:#e3f5ec;color:var(--daily)}
+.freq.w{background:#fdf0dc;color:var(--weekly)}
+.freq.p{background:#ece6fb;color:#6b3fd1}
+.plan{background:#f3effd;border:1px solid #d9cdf7;color:#4b2c99;border-radius:10px;padding:9px 11px;font-size:13px;margin:0 4px 8px;line-height:1.5}
+.freq.s{background:#eef1f5;color:var(--sub)}
+.empty{padding:18px 8px;color:var(--sub);font-size:14px}
+.note{font-size:11px;color:var(--sub);padding:10px 6px 0;line-height:1.5}
+.legend{display:flex;gap:10px;font-size:11px;color:var(--sub);margin-top:6px;flex-wrap:wrap}
+.legend span{display:inline-flex;align-items:center;gap:4px}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+.back{border:none;background:#f0f3f6;border-radius:10px;padding:6px 10px;font-size:13px;color:var(--ink);margin:0 14px 8px;font-weight:600}
+.routeHead h2{font-size:19px}
+.arrow{color:var(--accent);margin:0 4px}
+.hour{font-size:12px;font-weight:700;color:var(--sub);margin:12px 4px 2px}
+.fl{display:flex;align-items:center;gap:10px;padding:9px 6px;border-bottom:1px solid var(--line)}
+.fl .t{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;min-width:118px}
+.fl .t small{font-weight:500;color:var(--sub);font-size:12px}
+.fl .n{display:flex;flex-wrap:wrap;gap:4px}
+.chip{font-size:12px;font-weight:700;color:#fff;border-radius:6px;padding:3px 7px;white-space:nowrap}
+.chip.cs{opacity:.75}
+.actions{display:flex;gap:6px;flex-wrap:wrap;padding:12px 4px 0}
+.btn{border:1px solid #cfd8e2;background:#fff;border-radius:10px;padding:9px 11px;font-size:13px;font-weight:600;color:var(--ink);text-decoration:none;display:inline-block}
+.btn.pri{background:var(--dom);color:#fff;border-color:var(--dom)}
+.filters{display:flex;gap:6px;overflow-x:auto;padding:2px 4px 6px}
+.filters button{flex:none;border:1px solid #d6dee7;background:#f7f9fb;border-radius:999px;padding:5px 11px;font-size:12px;font-weight:600;color:var(--sub)}
+.filters.dir button{font-size:13px;padding:7px 13px}
+.filters button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.row .go{color:#b0bccb;font-size:18px;flex:none}
+.ally{font-size:10.5px;font-weight:700;border-radius:5px;padding:2px 6px;white-space:nowrap;border:1.5px solid}
+.ally.a-star{background:#1b1b1b;color:#f3d36b;border-color:#1b1b1b}
+.ally.a-ow{background:#5b2a86;color:#fff;border-color:#5b2a86}
+.ally.a-st{background:#0a5ea8;color:#fff;border-color:#0a5ea8}
+.ally.cs{background:transparent}
+.ally.a-star.cs{color:#1b1b1b}.ally.a-ow.cs{color:#5b2a86}.ally.a-st.cs{color:#0a5ea8}
+.allyRow{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+.filters button.a-btn-star.on{background:#1b1b1b;color:#f3d36b}
+.filters button.a-btn-ow.on{background:#5b2a86;border-color:#5b2a86}
+.filters button.a-btn-st.on{background:#0a5ea8;border-color:#0a5ea8}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>✈︎ 空旅マップ <small style="font-size:11px;color:#5b6b7c;font-weight:600">日本の空港の路線と時刻表</small></h1>
+    <div class="searchRow"><input id="q" type="search" placeholder="空港名・コードで検索（例：伊丹、KIX）" autocomplete="off"></div>
+    <div class="legend">
+      <span><i class="dot" style="background:var(--daily)"></i>毎日運航</span>
+      <span><i class="dot" style="background:var(--weekly)"></i>毎日ではない（週n便）</span>
+      <span><i class="dot" style="background:#8a5cf0"></i>運航予定</span>
+      <span><i class="dot" style="background:var(--dom)"></i>空港（タップで路線表示）</span>
+      <span><span class="ally a-star">★</span>スター</span><span><span class="ally a-ow">◯</span>ワンワールド</span><span><span class="ally a-st">◇</span>スカイチーム</span>
+    </div>
+  </header>
+  <div id="sugg"></div>
+  <div id="mapWrap">
+    <div class="hint" id="hint">空港の点をタップすると、国内線・国際線の行き先と運航頻度が表示されます。2本指で拡大できます。</div>
+    <div class="ctrls">
+      <button id="zin" aria-label="拡大">＋</button>
+      <button id="zout" aria-label="縮小">－</button>
+      <button id="zreset" aria-label="全体表示" style="font-size:14px">⟲</button>
+    </div>
+    <svg id="map" xmlns="http://www.w3.org/2000/svg">
+      <g id="vp">
+        <g id="landG"></g>
+        <g id="routeG"></g>
+        <g id="apG"></g>
+        <g id="lblG"></g>
+      </g>
+    </svg>
+    <div id="sheet">
+      <div class="grab" id="grab"></div>
+      <div class="sheetHead">
+        <div>
+          <div class="code" id="sCode"></div>
+          <h2 id="sName"></h2>
+          <div class="meta" id="sMeta"></div>
+        </div>
+        <button class="closeBtn" id="sClose" aria-label="閉じる">✕</button>
+      </div>
+      <button class="back" id="sBack" style="display:none">‹ 戻る</button>
+      <div class="tabs" id="tabsBox">
+        <button class="tab on" id="tDom">国内線</button>
+        <button class="tab intl" id="tIntl">国際線</button>
+      </div>
+      <div class="list" id="sList"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   データ：2026年冬ダイヤ（10月下旬〜）想定の目安。
+   便数は「片道・1日あたり」または「片道・週あたり」の概数です。
+   季節運航・運休・増減便があるため、最新は各航空会社でご確認ください。
+   ========================================================= */
+
+const AIRPORTS = {
+ // 北海道
+ CTS:["新千歳",42.775,141.692,1], OKD:["札幌丘珠",43.117,141.381,0], HKD:["函館",41.770,140.822,1],
+ AKJ:["旭川",43.671,142.447,0], KUH:["釧路",43.041,144.193,0], OBO:["とかち帯広",42.733,143.217,0],
+ MMB:["女満別",43.881,144.164,0], SHB:["根室中標津",43.578,144.960,0], WKJ:["稚内",45.404,141.801,0],
+ MBE:["オホーツク紋別",44.304,143.404,0], RIS:["利尻",45.242,141.186,0], OIR:["奥尻",42.072,139.433,0],
+ // 東北
+ AOJ:["青森",40.734,140.691,0], MSJ:["三沢",40.703,141.368,0], HNA:["いわて花巻",39.429,141.135,0],
+ AXT:["秋田",39.616,140.219,0], ONJ:["大館能代",40.192,140.371,0], SDJ:["仙台",38.140,140.917,1],
+ GAJ:["山形",38.412,140.371,0], SYO:["庄内",38.812,139.787,0], FKS:["福島",37.227,140.431,0],
+ // 関東・伊豆諸島
+ HND:["東京 羽田",35.553,139.781,1], NRT:["東京 成田",35.765,140.386,1], IBR:["茨城",36.181,140.415,0],
+ CHF:["調布",35.672,139.528,0], OIM:["大島",34.782,139.360,0], NJM:["新島",34.369,139.269,0],
+ KZS:["神津島",34.190,139.134,0], MYE:["三宅島",34.074,139.560,0], HAC:["八丈島",33.115,139.786,0],
+ // 中部
+ NGO:["中部（セントレア）",34.858,136.805,1], NKM:["名古屋小牧",35.255,136.924,0], KIJ:["新潟",37.956,139.121,0],
+ TOY:["富山",36.648,137.188,0], KMQ:["小松",36.394,136.408,0], NTQ:["能登",37.293,136.962,0],
+ MMJ:["信州まつもと",36.167,137.923,0], FSZ:["富士山静岡",34.796,138.189,0],
+ // 関西
+ KIX:["関西",34.427,135.244,1], ITM:["大阪 伊丹",34.785,135.438,1], UKB:["神戸",34.633,135.224,1],
+ SHM:["南紀白浜",33.662,135.364,0], TJH:["但馬",35.513,134.787,0],
+ // 中国
+ TTJ:["鳥取",35.530,134.167,0], YGJ:["米子",35.492,133.236,0], IZO:["出雲",35.414,132.890,0],
+ IWJ:["石見",34.676,131.790,0], OKI:["隠岐",36.181,133.325,0], OKJ:["岡山",34.757,133.855,0],
+ HIJ:["広島",34.436,132.919,1], IWK:["岩国",34.144,132.236,0], UBJ:["山口宇部",33.930,131.279,0],
+ // 四国
+ TKS:["徳島",34.133,134.607,0], TAK:["高松",34.214,134.016,0], MYJ:["松山",33.827,132.700,0], KCZ:["高知",33.546,133.669,0],
+ // 九州
+ FUK:["福岡",33.586,130.451,1], KKJ:["北九州",33.846,131.035,0], HSG:["佐賀",33.150,130.302,0],
+ NGS:["長崎",32.917,129.914,0], KMJ:["熊本",32.837,130.855,0], OIT:["大分",33.479,131.737,0],
+ KMI:["宮崎",31.877,131.449,0], KOJ:["鹿児島",31.803,130.719,1], TSJ:["対馬",34.285,129.331,0],
+ IKI:["壱岐",33.749,129.785,0], FUJ:["五島福江",32.666,128.833,0], AXJ:["天草",32.482,130.159,0],
+ TNE:["種子島",30.605,130.991,0], KUM:["屋久島",30.386,130.659,0], ASJ:["奄美",28.431,129.713,0],
+ KKX:["喜界",28.321,129.928,0], TKN:["徳之島",27.836,128.881,0], OKE:["沖永良部",27.425,128.701,0], RNJ:["与論",27.044,128.402,0],
+ // 沖縄
+ OKA:["那覇",26.196,127.646,1], MMY:["宮古",24.783,125.295,0], SHI:["下地島",24.827,125.145,0],
+ ISG:["石垣",24.397,124.245,0], OGN:["与那国",24.467,122.978,0], UEO:["久米島",26.364,126.714,0],
+ TRA:["多良間",24.654,124.675,0], KTD:["北大東",25.945,131.327,0], MMD:["南大東",25.846,131.263,0],
+};
+const PREF_NOTE = {CHF:"コードは便宜上", NJM:"コードは便宜上", KZS:"コードは便宜上", MYE:""};
+
+/* 国内線： "空港A-空港B|航空会社|便数"
+   便数：数字＝毎日の片道便数 / w数字＝週あたり片道便数 */
+const DOM_RAW = `
+HND-CTS|JAL・ANA・エア・ドゥ・スカイマーク|55
+HND-HKD|JAL・ANA・エア・ドゥ|8
+HND-AKJ|JAL・ANA・エア・ドゥ|7
+HND-KUH|JAL・ANA・エア・ドゥ|5
+HND-OBO|JAL・ANA・エア・ドゥ|7
+HND-MMB|JAL・ANA・エア・ドゥ|5
+HND-SHB|ANA|1
+HND-WKJ|ANA|1
+HND-MBE|ANA|1
+HND-AOJ|JAL|6
+HND-MSJ|JAL|3
+HND-AXT|JAL・ANA|9
+HND-ONJ|ANA|2
+HND-GAJ|JAL|2
+HND-SYO|ANA|4
+HND-HAC|ANA|3
+HND-OIM|ANA|1
+HND-TOY|ANA|4
+HND-KMQ|JAL・ANA|10
+HND-NTQ|ANA|2
+HND-ITM|JAL・ANA|30
+HND-KIX|JAL・ANA|6
+HND-UKB|スカイマーク・ANA|8
+HND-SHM|JAL|3
+HND-TTJ|ANA|5
+HND-YGJ|ANA|6
+HND-IZO|JAL|5
+HND-IWJ|ANA|2
+HND-OKJ|JAL・ANA|9
+HND-HIJ|JAL・ANA|17
+HND-IWK|ANA|5
+HND-UBJ|JAL・ANA・スターフライヤー|10
+HND-TKS|JAL・ANA|10
+HND-TAK|JAL・ANA|13
+HND-MYJ|JAL・ANA|12
+HND-KCZ|JAL・ANA|10
+HND-FUK|JAL・ANA・スカイマーク・スターフライヤー|50
+HND-KKJ|JAL・スターフライヤー|15
+HND-HSG|ANA|5
+HND-NGS|JAL・ANA・スカイマーク・ソラシドエア|18
+HND-KMJ|JAL・ANA・ソラシドエア|17
+HND-OIT|JAL・ANA・ソラシドエア|14
+HND-KMI|JAL・ANA・ソラシドエア|15
+HND-KOJ|JAL・ANA・スカイマーク・ソラシドエア|22
+HND-OKA|JAL・ANA・スカイマーク|30
+HND-MMY|JAL・ANA|2
+HND-ISG|JAL・ANA|3
+HND-ASJ|JAL|1
+NRT-CTS|ピーチ・ジェットスター・スプリング・ANA|16
+NRT-OKA|ピーチ・ジェットスター・ANA|8
+NRT-FUK|ピーチ・ジェットスター・ANA|10
+NRT-KIX|ピーチ・ジェットスター|6
+NRT-ITM|ANA|2
+NRT-NGO|ANA|2
+NRT-KOJ|ジェットスター・ピーチ|3
+NRT-KMJ|ジェットスター|1
+NRT-OIT|ジェットスター|1
+NRT-MYJ|ジェットスター|2
+NRT-KCZ|ジェットスター|1
+NRT-TAK|ジェットスター|1
+NRT-HIJ|スプリング・ジャパン|1
+NRT-ISG|ピーチ|1
+NRT-SHI|ジェットスター|1
+NRT-ASJ|ピーチ|1
+KIX-CTS|ピーチ・ジェットスター・ANA・JAL|12
+KIX-OKA|ピーチ・ジェットスター・ANA|8
+KIX-ISG|ピーチ|1
+KIX-SHI|ジェットスター|1
+KIX-HKD|ピーチ|1
+KIX-SDJ|ピーチ|2
+KIX-FUK|ピーチ|2
+KIX-NGS|ピーチ|2
+KIX-KOJ|ピーチ|2
+KIX-ASJ|ピーチ|1
+KIX-KMI|ピーチ|1
+KIX-KIJ|ピーチ|1
+ITM-CTS|JAL・ANA|12
+ITM-HKD|JAL・ANA|3
+ITM-AOJ|JAL|4
+ITM-MSJ|JAL|1
+ITM-HNA|JAL|4
+ITM-AXT|JAL・ANA|5
+ITM-GAJ|JAL|2
+ITM-SDJ|JAL・ANA・IBEX|13
+ITM-FKS|ANA|2
+ITM-KIJ|JAL・ANA・IBEX|10
+ITM-TJH|JAL|2
+ITM-IZO|JAL|4
+ITM-OKI|JAL|1
+ITM-KCZ|JAL|4
+ITM-MYJ|JAL・ANA|11
+ITM-FUK|JAL・ANA|10
+ITM-NGS|JAL・ANA|10
+ITM-KMJ|JAL・ANA|10
+ITM-OIT|JAL・ANA|6
+ITM-KMI|JAL・ANA|10
+ITM-KOJ|JAL・ANA|14
+ITM-TNE|JAL|1
+ITM-KUM|JAL|1
+ITM-ASJ|JAL|1
+ITM-OKA|JAL・ANA|6
+UKB-CTS|スカイマーク・エア・ドゥ|5
+UKB-SDJ|スカイマーク・FDA|4
+UKB-IBR|スカイマーク|2
+UKB-KIJ|FDA|2
+UKB-NGS|スカイマーク|2
+UKB-KOJ|スカイマーク|2
+UKB-OKA|スカイマーク・ソラシドエア|8
+UKB-SHI|スカイマーク|1
+UKB-MMJ|FDA|2
+UKB-AOJ|FDA|1
+UKB-HNA|FDA|1
+UKB-IZO|FDA|1
+NGO-CTS|JAL・ANA・エア・ドゥ・スカイマーク・ピーチ・ジェットスター|16
+NGO-HKD|JAL・ANA|2
+NGO-SDJ|ANA・IBEX|7
+NGO-AXT|ANA|2
+NGO-FUK|ANA・JAL・IBEX・スターフライヤー・ジェットスター|16
+NGO-NGS|ANA|3
+NGO-KMJ|ANA・ジェットスター|3
+NGO-KOJ|ANA・ジェットスター|4
+NGO-KMI|ANA・ソラシドエア|3
+NGO-MYJ|ANA|2
+NGO-OKA|JAL・ANA・スカイマーク・ピーチ・ジェットスター・ソラシドエア|12
+NGO-ISG|ANA|1
+NKM-AOJ|FDA|3
+NKM-HNA|FDA|2
+NKM-GAJ|FDA|2
+NKM-KIJ|FDA|2
+NKM-KCZ|FDA|2
+NKM-FUK|FDA|5
+NKM-KMJ|FDA|2
+NKM-IZO|FDA|2
+SDJ-CTS|JAL・ANA・エア・ドゥ・ピーチ・IBEX|16
+SDJ-KMQ|IBEX|2
+SDJ-HIJ|ANA・IBEX|4
+SDJ-FUK|JAL・ANA・IBEX|7
+SDJ-OKA|ANA・ピーチ|2
+SDJ-IZO|JAL|1
+CTS-AOJ|JAL・FDA|3
+CTS-MSJ|JAL|1
+CTS-HNA|JAL|2
+CTS-AXT|JAL・ANA|3
+CTS-GAJ|FDA|1
+CTS-FKS|ANA|2
+CTS-IBR|スカイマーク|2
+CTS-KIJ|JAL・ANA|4
+CTS-TOY|ANA|1
+CTS-KMQ|JAL・ANA|2
+CTS-MMJ|JAL・FDA|2
+CTS-FSZ|ANA・FDA|2
+CTS-OKJ|JAL|1
+CTS-HIJ|JAL・ANA|3
+CTS-FUK|JAL・ANA・ピーチ・スカイマーク|8
+CTS-OKA|ANA・ピーチ|2
+CTS-WKJ|ANA|2
+CTS-SHB|ANA|2
+CTS-MMB|JAL|2
+OKD-HKD|北海道エアシステム（HAC）|5
+OKD-KUH|北海道エアシステム（HAC）|3
+OKD-RIS|北海道エアシステム（HAC）|1
+OKD-MMB|北海道エアシステム（HAC）|3
+OKD-MSJ|北海道エアシステム（HAC）|1
+OKD-KIJ|トキエア|2
+OKD-MMJ|FDA|1
+OKD-FSZ|FDA|1
+HKD-OIR|北海道エアシステム（HAC）|1
+HNA-FUK|JAL|1
+IBR-FUK|スカイマーク|1
+IBR-OKA|スカイマーク|1
+KIJ-FUK|JAL・ANA・IBEX|4
+KIJ-OKA|ANA|1
+KMQ-FUK|JAL・ANA|4
+KMQ-OKA|JAL・ANA|1
+MMJ-FUK|FDA|2
+FSZ-FUK|FDA|3
+FSZ-OKA|FDA・ANA|1
+FSZ-KOJ|FDA|1
+FSZ-IZO|FDA|1
+IZO-FUK|JAL|2
+IZO-OKI|JAL|1
+OKJ-OKA|JAL|1
+HIJ-OKA|ANA|2
+IWK-OKA|ANA|1
+TKS-FUK|JAL|2
+TAK-OKA|ANA|1
+MYJ-FUK|JAL|4
+MYJ-OKA|ANA|1
+MYJ-KOJ|JAL|1
+KCZ-FUK|JAL|3
+FUK-KMI|JAL・ANA|8
+FUK-KOJ|JAL|6
+FUK-OKA|JAL・ANA・ピーチ・スカイマーク|14
+FUK-TSJ|ANA（ORC）|4
+FUK-FUJ|ANA（ORC）|3
+FUK-AXJ|天草エアライン|3
+FUK-ASJ|JAL|1
+FUK-KUM|JAL|1
+NGS-OKA|ANA|1
+NGS-TSJ|ANA（ORC）|4
+NGS-IKI|ANA（ORC）|2
+NGS-FUJ|ANA（ORC）|3
+KMJ-OKA|ANA|1
+KMJ-AXJ|天草エアライン|1
+KMI-OKA|ANA・ソラシドエア|2
+KOJ-OKA|JAL・ANA・ソラシドエア|4
+KOJ-TNE|JAL|4
+KOJ-KUM|JAL|5
+KOJ-ASJ|JAL・ANA|7
+KOJ-KKX|JAL|2
+KOJ-TKN|JAL|3
+KOJ-OKE|JAL|2
+KOJ-RNJ|JAL|1
+ASJ-KKX|JAL|3
+ASJ-TKN|JAL|2
+ASJ-OKE|JAL|1
+ASJ-RNJ|JAL|1
+ASJ-OKA|JAL（RAC）|1
+OKE-OKA|JAL（RAC）|1
+RNJ-OKA|JAL（RAC）|1
+OKA-MMY|JTA・ANA|12
+OKA-ISG|JTA・ANA・RAC|13
+OKA-UEO|JTA・RAC|4
+OKA-OGN|RAC|1
+OKA-KTD|RAC|w4
+OKA-MMD|RAC|1
+KTD-MMD|RAC|w3
+MMY-ISG|RAC|2
+MMY-TRA|RAC|2
+ISG-OGN|RAC|3
+CHF-OIM|新中央航空|3
+CHF-NJM|新中央航空|3
+CHF-KZS|新中央航空|3
+CHF-MYE|新中央航空|3
+OIM-NJM|新中央航空|w4
+NJM-KZS|新中央航空|w4
+`;
+
+/* 国際線： 空港 => [ [都市, 国・地域, 航空会社, 便数], ... ]
+   便数：数字＝毎日の片道便数 / w数字＝週あたり / "w?"＝週数便（毎日ではない）*/
+const INTL = {
+ NRT:[
+  ["ソウル（仁川）","韓国","大韓航空・アシアナ・チェジュ航空・ジンエアー・ティーウェイ・JAL・ANA ほか",20],
+  ["釜山","韓国","エアプサン・チェジュ航空",4],
+  ["大邱","韓国","ティーウェイ",1],
+  ["台北（桃園）","台湾","チャイナエアライン・エバー航空・スターラックス・タイガーエア台湾・JAL・ANA・ピーチ ほか",15],
+  ["高雄","台湾","チャイナエアライン・タイガーエア台湾・ピーチ",3],
+  ["香港","香港","キャセイ・HK Express・香港航空・JAL・ANA・ZIPAIR",10],
+  ["マカオ","マカオ","マカオ航空",1],
+  ["上海（浦東）","中国","中国東方・上海航空・吉祥・春秋・JAL・ANA",10],
+  ["北京","中国","中国国際航空・JAL・ANA",4],
+  ["大連","中国","JAL・中国国際航空",2],
+  ["広州","中国","中国南方・ANA",3],
+  ["深圳","中国","深圳航空",1],
+  ["マニラ","フィリピン","フィリピン航空・セブパシフィック・JAL・ANA",8],
+  ["セブ","フィリピン","フィリピン航空・セブパシフィック",2],
+  ["バンコク","タイ","タイ国際・JAL・ANA・タイエアアジアX・ZIPAIR",8],
+  ["シンガポール","シンガポール","シンガポール航空・スクート・JAL・ANA・ZIPAIR",6],
+  ["クアラルンプール","マレーシア","マレーシア航空・エアアジアX",2],
+  ["ハノイ","ベトナム","ベトナム航空・ベトジェット・JAL・ANA",4],
+  ["ホーチミン","ベトナム","ベトナム航空・ベトジェット・JAL・ANA",4],
+  ["ダナン","ベトナム","ベトナム航空",1],
+  ["ジャカルタ","インドネシア","ガルーダ・JAL・ANA",3],
+  ["デンパサール（バリ）","インドネシア","ガルーダ",1],
+  ["デリー","インド","エア・インディア・JAL",2],
+  ["ベンガルール","インド","JAL",1],
+  ["ドーハ","カタール","カタール航空",1],
+  ["ドバイ","UAE","エミレーツ",1],
+  ["アブダビ","UAE","エティハド",1],
+  ["イスタンブール","トルコ","ターキッシュ",1],
+  ["パリ","フランス","エールフランス・JAL",2],
+  ["ヘルシンキ","フィンランド","フィンエアー・JAL",2],
+  ["アムステルダム","オランダ","KLM",1],
+  ["チューリッヒ","スイス","スイス航空",1],
+  ["ワルシャワ","ポーランド","LOTポーランド","w?"],
+  ["ロサンゼルス","アメリカ","JAL・ZIPAIR・シンガポール航空 ほか",4],
+  ["サンフランシスコ","アメリカ","ユナイテッド・ZIPAIR",2],
+  ["ダラス","アメリカ","アメリカン・JAL",2],
+  ["ヒューストン","アメリカ","ユナイテッド・ANA",2],
+  ["ホノルル","アメリカ（ハワイ）","JAL・ANA・ハワイアン・ZIPAIR・ユナイテッド ほか",8],
+  ["グアム","アメリカ（グアム）","ユナイテッド・JAL",4],
+  ["サイパン","北マリアナ","ユナイテッド","w?"],
+  ["バンクーバー","カナダ","エア・カナダ・JAL・ANA・ZIPAIR",3],
+  ["メキシコシティ","メキシコ","アエロメヒコ・ANA",2],
+  ["シドニー","オーストラリア","カンタス",1],
+  ["メルボルン","オーストラリア","ジェットスター・ANA",2],
+  ["ケアンズ","オーストラリア","ジェットスター",1],
+  ["ブリスベン","オーストラリア","カンタス・ジェットスター","w?"],
+  ["オークランド","ニュージーランド","ニュージーランド航空",1],
+ ],
+ HND:[
+  ["ソウル（金浦）","韓国","JAL・ANA・大韓航空・アシアナ",12],
+  ["上海（虹橋）","中国","JAL・ANA・中国東方",6],
+  ["北京","中国","JAL・ANA・中国国際航空",5],
+  ["広州","中国","中国南方・ANA",2],
+  ["深圳","中国","ANA",1],
+  ["台北（松山）","台湾","JAL・ANA・チャイナエアライン・エバー航空",8],
+  ["香港","香港","JAL・ANA・キャセイ",8],
+  ["マニラ","フィリピン","JAL・ANA・フィリピン航空",4],
+  ["バンコク","タイ","JAL・ANA・タイ国際",6],
+  ["シンガポール","シンガポール","JAL・ANA・シンガポール航空",7],
+  ["クアラルンプール","マレーシア","ANA・マレーシア航空",2],
+  ["ハノイ","ベトナム","ANA・ベトナム航空",3],
+  ["ホーチミン","ベトナム","JAL・ANA・ベトナム航空",3],
+  ["ジャカルタ","インドネシア","JAL・ANA",2],
+  ["デリー","インド","JAL・ANA",2],
+  ["シドニー","オーストラリア","JAL・ANA・カンタス",3],
+  ["ドーハ","カタール","カタール航空",1],
+  ["ドバイ","UAE","エミレーツ",1],
+  ["イスタンブール","トルコ","ターキッシュ",1],
+  ["ロンドン","イギリス","JAL・ANA・ブリティッシュ・エアウェイズ",4],
+  ["パリ","フランス","JAL・ANA・エールフランス",4],
+  ["フランクフルト","ドイツ","ANA・ルフトハンザ",3],
+  ["ミュンヘン","ドイツ","ANA・ルフトハンザ",2],
+  ["ヘルシンキ","フィンランド","JAL・フィンエアー",2],
+  ["ローマ","イタリア","ITAエアウェイズ",1],
+  ["ニューヨーク","アメリカ","JAL・ANA・ユナイテッド・デルタ・アメリカン",5],
+  ["ロサンゼルス","アメリカ","JAL・ANA・ユナイテッド・デルタ・アメリカン",7],
+  ["サンフランシスコ","アメリカ","JAL・ANA・ユナイテッド",4],
+  ["シアトル","アメリカ","ANA・デルタ",2],
+  ["シカゴ","アメリカ","JAL・ANA・ユナイテッド・アメリカン",4],
+  ["ダラス","アメリカ","JAL・アメリカン",2],
+  ["ワシントン","アメリカ","ANA・ユナイテッド",2],
+  ["ボストン","アメリカ","JAL",1],
+  ["アトランタ","アメリカ","デルタ",1],
+  ["デトロイト","アメリカ","デルタ",1],
+  ["ミネアポリス","アメリカ","デルタ",1],
+  ["ホノルル","アメリカ（ハワイ）","JAL・ANA・ハワイアン・デルタ",7],
+  ["バンクーバー","カナダ","ANA・エア・カナダ",2],
+  ["トロント","カナダ","エア・カナダ",1],
+ ],
+ KIX:[
+  ["ソウル（仁川）","韓国","大韓航空・アシアナ・チェジュ航空・ジンエアー・ティーウェイ・ピーチ ほか",30],
+  ["釜山","韓国","エアプサン・チェジュ航空",6],
+  ["大邱","韓国","ティーウェイ・チェジュ航空",3],
+  ["清州","韓国","チェジュ航空 ほか",1],
+  ["済州","韓国","チェジュ航空・ジンエアー",1],
+  ["台北（桃園）","台湾","チャイナエアライン・エバー航空・スターラックス・タイガーエア台湾・ピーチ ほか",20],
+  ["高雄","台湾","チャイナエアライン・タイガーエア台湾・ピーチ",4],
+  ["台中","台湾","タイガーエア台湾",1],
+  ["香港","香港","キャセイ・HK Express・香港航空・ピーチ",10],
+  ["マカオ","マカオ","マカオ航空",2],
+  ["上海（浦東）","中国","中国東方・上海航空・吉祥・春秋・ピーチ ほか",15],
+  ["北京","中国","中国国際航空",3],
+  ["広州","中国","中国南方",2],
+  ["深圳","中国","深圳航空",2],
+  ["青島","中国","山東航空",2],
+  ["杭州","中国","中国国際航空 ほか",2],
+  ["南京","中国","中国東方",1],
+  ["大連","中国","中国国際航空 ほか",1],
+  ["マニラ","フィリピン","フィリピン航空・セブパシフィック",4],
+  ["セブ","フィリピン","フィリピン航空",1],
+  ["バンコク","タイ","タイ国際・タイエアアジアX",6],
+  ["シンガポール","シンガポール","シンガポール航空・スクート",4],
+  ["クアラルンプール","マレーシア","マレーシア航空・エアアジアX",2],
+  ["ハノイ","ベトナム","ベトナム航空・ベトジェット",3],
+  ["ホーチミン","ベトナム","ベトナム航空・ベトジェット",2],
+  ["デンパサール（バリ）","インドネシア","ガルーダ",1],
+  ["ドーハ","カタール","カタール航空",1],
+  ["ドバイ","UAE","エミレーツ",1],
+  ["イスタンブール","トルコ","ターキッシュ","w?"],
+  ["ヘルシンキ","フィンランド","フィンエアー",1],
+  ["パリ","フランス","エールフランス",1],
+  ["フランクフルト","ドイツ","ルフトハンザ","w?"],
+  ["サンフランシスコ","アメリカ","ユナイテッド",1],
+  ["ホノルル","アメリカ（ハワイ）","JAL・ハワイアン",3],
+  ["グアム","アメリカ（グアム）","ユナイテッド",1],
+ ],
+ NGO:[
+  ["ソウル（仁川）","韓国","大韓航空・アシアナ・チェジュ航空・ジンエアー・ティーウェイ",8],
+  ["釜山","韓国","エアプサン",1],
+  ["台北（桃園）","台湾","チャイナエアライン・エバー航空・スターラックス・タイガーエア台湾",8],
+  ["香港","香港","キャセイ・HK Express",3],
+  ["上海（浦東）","中国","中国東方・上海航空",3],
+  ["北京","中国","中国国際航空","w?"],
+  ["バンコク","タイ","タイ国際・タイエアアジアX",2],
+  ["シンガポール","シンガポール","シンガポール航空",1],
+  ["マニラ","フィリピン","フィリピン航空・セブパシフィック",2],
+  ["ハノイ","ベトナム","ベトナム航空",1],
+  ["ホーチミン","ベトナム","ベトナム航空",1],
+  ["ドバイ","UAE","エミレーツ",1],
+  ["フランクフルト","ドイツ","ルフトハンザ","w?"],
+  ["ヘルシンキ","フィンランド","フィンエアー","w?"],
+  ["ホノルル","アメリカ（ハワイ）","JAL・ハワイアン",1],
+  ["グアム","アメリカ（グアム）","ユナイテッド",1],
+ ],
+ FUK:[
+  ["ソウル（仁川）","韓国","大韓航空・アシアナ・チェジュ航空・ジンエアー・ティーウェイ ほか",20],
+  ["釜山","韓国","エアプサン・チェジュ航空",6],
+  ["大邱","韓国","ティーウェイ・チェジュ航空",2],
+  ["台北（桃園）","台湾","チャイナエアライン・エバー航空・スターラックス・タイガーエア台湾",8],
+  ["高雄","台湾","チャイナエアライン・タイガーエア台湾",1],
+  ["香港","香港","キャセイ・HK Express・香港航空",4],
+  ["上海（浦東）","中国","中国東方・上海航空",2],
+  ["マニラ","フィリピン","フィリピン航空・セブパシフィック",2],
+  ["バンコク","タイ","タイ国際",1],
+  ["シンガポール","シンガポール","シンガポール航空",1],
+  ["ハノイ","ベトナム","ベトナム航空",1],
+  ["ホノルル","アメリカ（ハワイ）","ハワイアン","w3"],
+ ],
+ CTS:[
+  ["ソウル（仁川）","韓国","大韓航空・アシアナ・チェジュ航空・ジンエアー・ティーウェイ ほか",15],
+  ["釜山","韓国","エアプサン",2],
+  ["大邱","韓国","ティーウェイ",1],
+  ["台北（桃園）","台湾","チャイナエアライン・エバー航空・スターラックス・タイガーエア台湾 ほか",10],
+  ["高雄","台湾","チャイナエアライン・タイガーエア台湾",1],
+  ["香港","香港","キャセイ・HK Express・香港航空",5],
+  ["上海（浦東）","中国","中国東方・吉祥・春秋",3],
+  ["バンコク","タイ","タイ国際・タイエアアジアX",3],
+  ["シンガポール","シンガポール","シンガポール航空",1],
+  ["マニラ","フィリピン","セブパシフィック",1],
+  ["クアラルンプール","マレーシア","エアアジアX","w?"],
+ ],
+ OKA:[
+  ["ソウル（仁川）","韓国","大韓航空・アシアナ・チェジュ航空・ジンエアー・ティーウェイ",8],
+  ["釜山","韓国","エアプサン",1],
+  ["台北（桃園）","台湾","チャイナエアライン・エバー航空・スターラックス・タイガーエア台湾・ピーチ",8],
+  ["高雄","台湾","チャイナエアライン・ピーチ",2],
+  ["台中","台湾","タイガーエア台湾","w?"],
+  ["香港","香港","キャセイ・HK Express・香港航空",4],
+  ["上海（浦東）","中国","春秋 ほか","w?"],
+ ],
+ SDJ:[["ソウル（仁川）","韓国","大韓航空・アシアナ ほか",2],["台北（桃園）","台湾","エバー航空・タイガーエア台湾","w?"]],
+ HKD:[["ソウル（仁川）","韓国","大韓航空・ティーウェイ","w?"],["台北（桃園）","台湾","エバー航空・チャイナエアライン","w?"]],
+ AKJ:[["台北（桃園）","台湾","エバー航空","w?"],["ソウル（仁川）","韓国","大韓航空","w?"]],
+ AOJ:[["ソウル（仁川）","韓国","大韓航空","w3"],["台北（桃園）","台湾","エバー航空","w?"]],
+ HNA:[["台北（桃園）","台湾","タイガーエア台湾","w?"]],
+ IBR:[["ソウル（仁川）","韓国","ティーウェイ","w?"],["台北（桃園）","台湾","タイガーエア台湾","w?"]],
+ KIJ:[["ソウル（仁川）","韓国","大韓航空","w3"],["台北（桃園）","台湾","タイガーエア台湾","w?"]],
+ TOY:[["ソウル（仁川）","韓国","大韓航空","w3"],["台北（桃園）","台湾","チャイナエアライン","w2"]],
+ KMQ:[["ソウル（仁川）","韓国","大韓航空","w?"],["台北（桃園）","台湾","エバー航空","w?"]],
+ FSZ:[["ソウル（仁川）","韓国","アシアナ・チェジュ航空","w?"],["台北（桃園）","台湾","チャイナエアライン","w?"],["上海（浦東）","中国","中国東方","w?"]],
+ UKB:[["ソウル（仁川）","韓国","ティーウェイ ほか","w?"],["台北（桃園）","台湾","タイガーエア台湾 ほか","w?"]],
+ OKJ:[["ソウル（仁川）","韓国","アシアナ","w?"],["台北（桃園）","台湾","チャイナエアライン","w?"]],
+ HIJ:[["ソウル（仁川）","韓国","アシアナ",1],["台北（桃園）","台湾","チャイナエアライン","w?"]],
+ YGJ:[["ソウル（仁川）","韓国","アシアナ","w?"],["香港","香港","香港航空","w?"]],
+ TAK:[["ソウル（仁川）","韓国","アシアナ・チェジュ航空","w?"],["台北（桃園）","台湾","チャイナエアライン","w?"],["香港","香港","香港航空","w?"],["上海（浦東）","中国","春秋","w?"]],
+ MYJ:[["ソウル（仁川）","韓国","チェジュ航空","w?"],["台北（桃園）","台湾","エバー航空","w?"]],
+ KKJ:[["ソウル（仁川）","韓国","ティーウェイ・ジンエアー","w?"]],
+ HSG:[["ソウル（仁川）","韓国","ティーウェイ","w?"],["上海（浦東）","中国","春秋","w?"],["台北（桃園）","台湾","タイガーエア台湾","w?"]],
+ NGS:[["ソウル（仁川）","韓国","チェジュ航空","w?"]],
+ KMJ:[["ソウル（仁川）","韓国","ティーウェイ","w?"],["台北（桃園）","台湾","チャイナエアライン","w?"]],
+ OIT:[["ソウル（仁川）","韓国","ティーウェイ","w?"]],
+ KMI:[["ソウル（仁川）","韓国","アシアナ","w?"],["台北（桃園）","台湾","チャイナエアライン","w?"]],
+ KOJ:[["ソウル（仁川）","韓国","大韓航空","w?"],["台北（桃園）","台湾","チャイナエアライン","w?"],["香港","香港","香港航空","w?"],["上海（浦東）","中国","中国東方","w?"]],
+};
+
+/* ---------- 地図（簡略化した海岸線） ---------- */
+const LAND = [
+ // 北海道
+ [[141.94,45.52],[142.2,45.3],[142.6,44.9],[143.0,44.55],[143.5,44.2],[144.1,44.1],[144.4,43.95],[144.75,43.95],[145.1,44.15],[145.32,44.36],[145.2,44.1],[145.1,43.78],[145.3,43.55],[145.15,43.42],[145.55,43.38],[145.82,43.38],[145.5,43.27],[145.1,43.12],[144.6,42.97],[144.38,42.98],[144.0,42.9],[143.6,42.62],[143.3,42.2],[143.25,41.93],[142.9,42.1],[142.5,42.25],[142.0,42.45],[141.6,42.62],[141.1,42.4],[140.95,42.33],[140.7,42.55],[140.4,42.45],[140.4,42.25],[140.58,42.1],[140.75,41.95],[141.15,41.8],[140.95,41.73],[140.7,41.77],[140.4,41.5],[140.05,41.42],[140.0,41.55],[140.1,41.9],[139.85,42.2],[139.85,42.6],[140.25,42.8],[140.47,43.37],[140.8,43.2],[141.0,43.2],[141.3,43.2],[141.4,43.5],[141.63,43.94],[141.75,44.4],[141.7,44.9],[141.6,45.2],[141.67,45.41],[141.94,45.52]],
+ // 本州
+ [[140.92,41.53],[141.45,41.42],[141.4,41.0],[141.5,40.5],[141.8,40.0],[142.07,39.55],[141.9,39.0],[141.6,38.65],[141.5,38.3],[141.1,38.32],[140.95,38.1],[141.0,37.5],[140.95,37.0],[140.65,36.7],[140.6,36.3],[140.85,35.75],[140.4,35.4],[140.2,35.05],[139.85,34.9],[139.8,35.3],[140.1,35.6],[139.8,35.65],[139.65,35.45],[139.62,35.13],[139.55,35.3],[139.15,35.25],[139.1,34.9],[138.85,34.6],[138.75,34.75],[138.8,35.05],[138.5,35.0],[138.22,34.6],[137.7,34.65],[137.25,34.6],[137.0,34.58],[137.3,34.75],[137.05,34.85],[136.85,34.7],[136.9,35.05],[136.65,34.9],[136.55,34.6],[136.9,34.5],[136.85,34.3],[136.3,34.15],[136.0,33.7],[135.77,33.45],[135.4,33.65],[135.1,33.9],[135.15,34.2],[135.4,34.5],[135.45,34.7],[135.2,34.7],[134.7,34.77],[134.2,34.62],[133.9,34.5],[133.4,34.37],[132.9,34.22],[132.45,34.35],[132.2,34.1],[131.8,34.0],[131.3,33.95],[130.9,33.95],[130.9,34.2],[131.2,34.4],[131.6,34.65],[132.0,34.85],[132.4,35.1],[132.65,35.45],[133.05,35.55],[133.25,35.55],[133.6,35.5],[134.2,35.55],[134.8,35.65],[135.2,35.78],[135.45,35.5],[135.75,35.5],[136.05,35.65],[135.95,35.98],[136.15,36.2],[136.6,36.6],[136.7,36.9],[136.75,37.2],[136.85,37.4],[137.35,37.53],[137.25,37.3],[137.0,37.05],[137.0,36.8],[137.3,36.75],[137.65,36.95],[138.15,37.15],[138.55,37.4],[139.05,37.95],[139.3,38.1],[139.55,38.5],[139.8,38.9],[139.95,39.2],[140.05,39.6],[139.7,39.95],[140.0,40.2],[139.9,40.6],[140.0,40.8],[140.35,41.25],[140.6,40.95],[140.75,40.85],[140.95,40.9],[141.2,41.25],[140.8,41.13],[140.9,41.4],[140.92,41.53]],
+ // 四国
+ [[134.7,34.15],[134.7,33.85],[134.3,33.5],[134.18,33.24],[133.9,33.5],[133.55,33.5],[133.2,33.3],[133.0,33.0],[132.95,32.72],[132.55,32.9],[132.55,33.22],[132.0,33.35],[132.4,33.45],[132.65,33.75],[133.0,34.08],[133.25,33.95],[133.6,34.05],[134.05,34.35],[134.4,34.25],[134.7,34.15]],
+ // 九州
+ [[130.9,33.95],[131.1,33.65],[131.55,33.6],[131.7,33.3],[131.65,33.25],[131.95,33.0],[131.85,32.75],[131.65,32.4],[131.45,31.95],[131.35,31.5],[131.33,31.37],[131.1,31.4],[130.75,30.99],[130.65,31.25],[130.75,31.55],[130.55,31.6],[130.6,31.2],[130.25,31.25],[130.2,31.6],[130.35,32.0],[130.55,32.4],[130.7,32.8],[130.45,32.9],[130.3,33.1],[130.1,33.05],[130.35,32.75],[130.15,32.6],[129.95,32.75],[129.85,32.65],[129.7,32.9],[129.72,33.17],[129.75,33.35],[130.0,33.45],[130.35,33.6],[130.5,33.85],[130.9,33.95]],
+ // 沖縄本島
+ [[128.27,26.87],[128.0,26.65],[127.85,26.45],[127.72,26.3],[127.65,26.08],[127.75,26.1],[127.85,26.18],[127.95,26.45],[128.25,26.65],[128.33,26.85],[128.27,26.87]],
+ // 淡路島
+ [[134.9,34.6],[135.05,34.5],[134.85,34.2],[134.7,34.28],[134.9,34.6]],
+ // 佐渡
+ [[138.25,38.3],[138.5,38.3],[138.55,38.05],[138.35,37.82],[138.22,37.82],[138.35,38.0],[138.25,38.3]],
+];
+// 小さな島（中心・半径）
+const ISLES = [
+ [141.2,45.18,.13,.1],[139.45,42.15,.07,.1],[133.25,36.2,.14,.1],[129.3,34.4,.08,.28],[129.72,33.8,.07,.06],[128.85,32.7,.18,.12],[129.1,32.95,.12,.08],
+ [130.15,32.4,.18,.15],[130.98,30.6,.08,.3],[130.53,30.35,.15,.13],[129.4,28.3,.35,.2],[129.95,28.32,.06,.05],[128.95,27.8,.07,.1],[128.6,27.38,.08,.05],[128.4,27.04,.04,.03],
+ [126.78,26.35,.06,.05],[125.33,24.78,.14,.1],[125.15,24.82,.04,.04],[124.7,24.66,.04,.03],[124.18,24.42,.14,.1],[123.85,24.32,.15,.11],[123.0,24.46,.07,.04],
+ [131.23,25.84,.05,.05],[131.3,25.95,.04,.04],[139.39,34.73,.07,.08],[139.27,34.36,.04,.06],[139.14,34.21,.04,.04],[139.53,34.08,.06,.06],[139.8,33.1,.07,.07],
+];
+
+/* ---------- 解析 ---------- */
+const parseFreq = f => {
+  if (typeof f === "number") return {kind:"d", n:f, txt:`毎日 ${f}便`, score:f*7};
+  const s = String(f).trim();
+  if (/^\d+$/.test(s)) { const n=+s; return {kind:"d", n, txt:`毎日 ${n}便`, score:n*7}; }
+  if (s === "w?") return {kind:"w", n:0, txt:"週数便", score:3};
+  const m = s.match(/^w(\d+)$/);
+  if (m) { const n=+m[1]; return n>=7 ? {kind:"d",n:Math.round(n/7),txt:`毎日 ${Math.round(n/7)}便`,score:n} : {kind:"w", n, txt:`週${n}便`, score:n}; }
+  return {kind:"s", n:0, txt:s, score:0};
+};
+const DOM = {}; Object.keys(AIRPORTS).forEach(k => DOM[k] = []);
+DOM_RAW.trim().split("\n").forEach(line => {
+  const [pair, al, fq] = line.split("|"); const [a,b] = pair.split("-");
+  if (!AIRPORTS[a] || !AIRPORTS[b]) return;
+  const f = parseFreq(fq);
+  DOM[a].push({to:b, al, f}); DOM[b].push({to:a, al, f});
+});
+
+/* ---------- 時刻表（駅探 2026年11月7〜8日の掲載より） ---------- */
+const TT_DATE = "2026年10〜11月";
+const TT_RAW = `
+IZO>HND|07:45-09:00 JAL276,09:30-10:40 JAL278,12:05-13:20 JAL280,16:45-18:05 JAL284,19:05-20:20 JAL286
+IZO>NKM|08:50-09:45 JAL4462,08:50-09:45 FDA412,15:05-16:00 JAL4464,15:05-16:00 FDA414,18:10-19:05 JAL4468,18:10-19:05 FDA418
+IZO>OKI|09:00-09:30 JAL3433
+IZO>SDJ|10:45-12:10 JAL4538,10:45-12:10 FDA702
+IZO>FUK|11:00-12:10 JAL3550,19:00-20:10 JAL3554
+ITM>HND|07:05-08:10 JAL102,07:05-08:10 ANA986,07:30-08:40 JAL104,07:30-08:45 ANA014,08:00-09:15 ANA016,08:30-09:35 JAL106,09:00-10:10 ANA018,09:40-10:45 JAL110,10:00-11:10 ANA020,10:30-11:35 JAL112,11:00-12:10 ANA022,11:30-12:40 JAL114,12:00-13:10 ANA024,12:30-13:40 JAL116,13:00-14:10 ANA026,13:30-14:40 JAL118,14:30-15:40 ANA028,14:35-15:40 JAL120,15:30-16:40 JAL124,15:40-16:55 ANA032,16:25-17:35 JAL126,16:50-18:05 ANA034,17:00-18:10 JAL128,17:50-19:05 ANA036,18:35-19:45 JAL130,19:00-20:10 ANA038,19:35-20:40 JAL134,20:10-21:20 JAL138,20:20-21:30 ANA040
+ITM>CTS|07:35-09:20 JAL2001,08:30-10:20 ANA771,10:20-12:10 ANA773,10:50-12:35 JAL3913,11:45-13:30 JAL2005,11:55-13:45 ANA1089,12:00-13:45 JAL3915,12:45-14:30 JAL2007,14:00-15:50 ANA983,15:00-16:50 ANA1091,15:05-16:50 JAL2009,16:00-17:50 ANA777,18:20-20:05 JAL2019,19:00-20:50 ANA779
+ITM>OKA|08:10-10:30 JAL2081,08:15-10:30 ANA761,09:45-12:00 ANA763,12:00-14:15 ANA765,13:45-16:05 ANA1273,14:05-16:25 JTA265,14:45-17:00 ANA767,14:50-17:05 JAL2087,18:50-21:10 ANA769,19:40-22:00 JTA269
+ITM>FUK|07:05-08:20 ANA421,07:20-08:45 JAL2051,09:15-10:30 ANA423,10:45-12:00 ANA1189,14:25-15:45 ANA425,20:05-21:30 JAL2061
+ITM>KOJ|07:05-08:30 ANA541,07:10-08:25 JAL2401,09:15-10:30 JAL2405,09:15-10:40 ANA543,10:55-12:10 JAL2407,11:00-12:25 ANA545,15:05-16:20 JAL2409,15:45-17:10 ANA547,16:15-17:30 JAL2411,17:00-18:25 ANA1161,17:20-18:35 JAL2415,19:55-21:20 ANA551,20:05-21:20 JAL2419
+ITM>KMJ|07:10-08:30 ANA521,07:15-08:30 JAL2383,09:40-10:55 ANA523,10:40-12:00 ANA1625,12:40-14:20 JAL3881,12:40-14:20 AMX802,13:25-14:45 ANA1627,16:15-17:35 ANA527,17:25-18:35 JAL2389,19:35-20:55 ANA529
+ITM>NGS|07:10-08:35 JAL2371,09:45-11:10 ANA781,11:25-12:45 JAL2373,13:05-14:30 ANA783,14:45-16:00 JAL2375,15:25-16:50 ANA785,17:00-18:20 JAL2377,19:25-20:45 ANA787
+ITM>KMI|07:25-08:35 JAL2431,07:35-08:50 ANA501,09:30-10:40 ANA503,11:05-12:15 JAL2433,11:45-12:50 ANA505,14:20-15:25 JAL2437,15:15-16:25 ANA507,16:05-17:10 JAL2439,17:00-18:05 ANA509,19:45-20:55 ANA511,19:55-21:00 JAL2445
+ITM>OIT|07:05-08:05 JAL2361,07:15-08:15 ANA3155,07:15-08:15 IBX55,10:10-11:10 ANA3157,10:10-11:10 IBX57,14:45-15:50 ANA1689,17:05-18:10 ANA1691,17:45-18:45 JAL2367
+ITM>MYJ|07:05-08:00 ANA1633,09:00-09:55 ANA1635,09:35-10:25 JAL2301,10:30-11:25 ANA1639,13:05-14:00 ANA1641,16:15-17:05 ANA1645,18:00-18:50 ANA1647,18:05-18:55 JAL2309,20:15-21:10 ANA1649
+ITM>KCZ|07:15-08:00 ANA1601,10:00-10:45 ANA1605,13:25-14:10 ANA1607,16:00-16:45 ANA1611,17:50-18:35 ANA1615,19:00-19:45 ANA1619
+ITM>IZO|07:05-07:50 JAL2345,10:35-11:25 JAL2351,14:10-15:00 JAL2355,18:15-19:00 JAL2357
+ITM>OKI|12:20-13:10 JAL2331
+ITM>TJH|09:05-09:40 JAL2323,16:55-17:30 JAL2325
+ITM>ASJ|09:35-11:25 JAL2465
+ITM>KUM|11:25-13:15 JAL2451
+ITM>SDJ|07:10-08:25 JAL2201,07:50-09:05 ANA731,10:00-11:05 JAL2203,10:00-11:15 ANA733,10:35-11:45 JAL2205,11:40-13:00 ANA735,12:25-13:35 ANA3151,12:25-13:35 IBX51,14:25-15:35 JAL2207,15:20-16:30 ANA3153,15:20-16:30 IBX53,15:30-16:40 JAL2209,16:50-18:05 ANA737,16:55-18:10 JAL2213,19:40-20:55 ANA739,19:50-21:05 JAL2217
+ITM>AXT|07:50-09:05 JAL2171,08:00-09:30 ANA1651,12:35-14:05 ANA1653,13:15-14:30 JAL2173,16:35-17:50 JAL2179,19:15-20:45 ANA1655
+ITM>GAJ|08:10-09:25 JAL2233,13:50-15:00 JAL2235,16:20-17:25 JAL2237
+ITM>HNA|07:30-08:50 JAL2181,11:35-12:55 JAL2183,13:30-14:50 JAL2185,16:45-18:05 JAL2187
+ITM>AOJ|07:45-09:15 JAL2151,08:45-10:30 ANA1851,12:10-13:35 JAL2153,14:15-16:00 ANA1853,16:45-18:10 JAL2157,18:35-20:20 ANA1855
+ITM>MSJ|09:10-10:40 JAL2161,15:40-17:10 JAL2163
+ITM>HKD|08:20-09:55 ANA745,11:10-12:40 JAL2123,15:30-17:05 ANA1269
+ITM>AKJ|08:45-10:30 JAL2111
+ITM>KIJ|07:35-08:35 JAL2241,08:25-09:25 ANA3171,08:25-09:25 IBX71,10:00-11:05 ANA1659,10:55-12:00 ANA1661,11:00-12:00 JAL2243,13:35-14:35 JAL2247,14:15-15:15 ANA3173,14:15-15:15 IBX73,17:30-18:35 JAL2251,17:30-18:30 ANA3189,17:30-18:30 IBX89,19:00-20:05 ANA1663
+ITM>FKS|07:50-08:55 ANA1695,10:55-11:55 ANA3179,10:55-11:55 IBX79,16:55-17:55 ANA3181,16:55-17:55 IBX81,19:05-20:10 ANA1697
+ITM>NRT|14:00-15:30 ANA2178,14:40-16:05 JAL3006
+KIX>HND|06:45-07:55 ANA990,06:50-07:55 JAL220,07:05-08:15 ANA094,09:45-10:50 ANA096,11:10-12:25 ANA3822,11:10-12:25 SFJ22,14:10-15:25 ANA3824,14:10-15:25 SFJ24,14:40-15:55 JAL224,15:20-16:40 ANA992,17:35-18:50 ANA3826,17:35-18:50 SFJ26,19:00-20:20 ANA3828,19:00-20:20 SFJ28,21:00-22:15 ANA098,21:10-22:20 JAL228
+KIX>NRT|07:25-08:50 JJP230,07:50-09:15 APJ307,15:00-16:25 APJ309,19:15-20:35 JJP236,20:05-21:25 JJP234,20:40-22:05 APJ315,21:10-22:30 JJP232
+KIX>CTS|07:20-09:15 APJ101,08:00-09:55 APJ103,09:15-11:10 APJ105,09:45-11:35 JAL2501,09:50-11:50 JJP153,10:00-11:55 APJ107,13:55-15:50 APJ111,15:30-17:20 JAL2505,16:15-18:10 APJ115,17:45-19:40 APJ117
+KIX>SDJ|07:00-08:20 APJ135,14:35-15:55 APJ137,18:05-19:25 APJ141
+KIX>FUK|07:30-08:55 APJ151,09:55-11:20 APJ153,14:50-16:15 APJ155,17:50-19:15 APJ159
+KIX>OKA|06:55-09:20 APJ209,07:40-10:05 APJ211,08:20-10:50 JTA001,08:45-11:15 JJP351,09:10-11:35 APJ217,11:35-14:00 APJ219,12:25-14:50 APJ221,14:55-17:25 JJP355
+KIX>MMY|07:40-10:20 JTA121
+KIX>ISG|07:10-09:55 APJ371,09:55-12:45 JTA083,16:10-18:55 APJ377
+KIX>KOJ|08:25-09:45 APJ193,15:05-16:25 APJ199
+KIX>ASJ|12:35-14:35 APJ203
+KIX>KMI|13:45-14:55 APJ187
+KIX>NGS|13:50-15:10 APJ171
+UKB>HND|07:05-08:15 ANA412,07:10-08:30 SKY100,09:20-10:25 SKY102,11:10-12:20 SKY106,14:40-15:50 SKY110,16:30-17:40 SKY112,19:05-20:15 SKY116,21:20-22:30 ANA416
+UKB>OKA|07:05-09:20 SKY591,07:50-10:00 ANA2525,07:50-10:00 SNA125,12:10-14:30 SKY593,13:55-16:10 ANA2527,13:55-16:10 SNA127,17:30-19:45 ANA2529,17:30-19:45 SKY595,17:30-19:45 SNA129,18:45-21:00 SKY597
+UKB>CTS|08:05-09:55 SKY171,08:40-10:30 ANA577,09:00-10:50 SKY173,10:30-12:20 ANA4819,10:30-12:20 ADO119,15:05-16:55 SKY175,17:25-19:15 SKY177,19:00-20:50 ANA4821,19:00-20:50 ADO121
+UKB>KOJ|07:15-08:25 SKY131,13:50-15:00 SKY135,19:40-20:50 SKY137
+UKB>IBR|07:45-08:55 SKY182,12:45-13:50 SKY184,17:20-18:25 SKY186,21:10-22:15 SKY188
+UKB>SDJ|08:10-09:30 SKY152,11:45-13:05 SKY154,15:55-17:15 SKY156
+UKB>SHI|10:40-13:15 SKY163
+UKB>NGS|10:00-11:15 SKY141,15:15-16:30 SKY145,20:05-21:20 SKY147
+UKB>KIJ|11:35-13:05 TOK502,15:50-17:20 TOK504
+UKB>MMJ|12:00-13:00 JAL4363,12:00-13:00 FDA234
+HND>ITM|06:20-07:30 ANA985,06:30-07:40 JAL101,07:00-08:10 ANA013,07:35-08:45 JAL103,08:15-09:25 ANA015,08:30-09:40 JAL107,09:00-10:10 ANA017,09:30-10:40 JAL111,10:00-11:10 ANA019,10:35-11:45 JAL113,11:00-12:10 ANA021,11:40-12:50 JAL115,12:30-13:40 ANA023,12:35-13:45 JAL117,13:30-14:40 JAL119,14:00-15:10 ANA027,14:30-15:40 JAL121,15:00-16:10 JAL125,15:00-16:10 ANA031,16:00-17:10 ANA033,16:25-17:35 JAL127,17:00-18:10 ANA035,17:30-18:40 JAL131,18:00-19:10 ANA037,18:05-19:15 JAL133,18:30-19:45 JAL137,19:00-20:20 JAL139,19:00-20:20 ANA039,19:10-20:35 ANA041
+HND>KIX|07:05-08:25 JAL221,07:35-09:00 ANA093,08:45-10:15 ANA3821,08:45-10:15 SFJ21,12:00-13:30 ANA3823,12:00-13:30 SFJ23,12:30-14:00 JAL225,13:15-14:40 ANA991,15:25-16:55 ANA3825,15:25-16:55 SFJ25,16:45-18:15 ANA3827,16:45-18:15 SFJ27,18:05-19:30 ANA095,20:30-21:50 ANA097,20:55-22:15 JAL229,21:00-22:20 ANA099
+HND>UKB|06:40-08:00 ANA411,07:20-08:40 SKY101,09:10-10:30 SKY103,13:00-14:20 SKY105,15:30-16:50 SKY109,17:40-19:05 SKY113,20:05-21:25 SKY117,20:30-21:45 ANA415
+CTS>ITM|08:30-10:30 ANA772,09:00-11:00 JAL2000,11:10-13:10 ANA774,12:20-14:20 JAL2004,12:30-14:30 ANA1090,13:15-15:20 JAL3914,13:45-15:45 ANA984,14:20-16:25 JAL3916,15:05-17:10 JAL2008,15:10-17:10 ANA1092,15:30-17:30 JAL2010,16:15-18:15 ANA778,17:40-19:40 JAL2016,17:50-19:50 ANA780
+CTS>KIX|09:50-12:20 APJ102,10:50-13:20 APJ104,12:20-14:45 JAL2504,12:45-15:15 APJ106,15:20-17:50 APJ108,16:35-19:05 JJP156,17:25-19:55 APJ112,18:05-20:25 JAL2506,18:50-21:20 APJ114,19:30-22:00 APJ116,20:10-22:40 APJ118
+CTS>UKB|07:55-10:00 ANA4818,07:55-10:00 ADO118,08:55-11:00 SKY172,14:55-16:55 SKY174,16:25-18:30 ANA4820,16:25-18:30 ADO120,18:30-20:30 ANA578,19:50-21:50 SKY176,20:20-22:25 SKY178
+OKA>ITM|07:30-09:30 ANA760,11:20-13:15 ANA762,11:30-13:20 JTA264,11:55-13:50 JAL2084,12:55-14:50 ANA764,15:05-17:00 ANA766,16:55-18:55 ANA1274,17:05-18:55 JTA268,17:55-19:50 ANA770,18:05-20:00 JAL2088
+OKA>KIX|07:20-09:10 JTA002,12:05-14:05 JJP350,12:20-14:15 APJ212,15:45-17:40 APJ214,18:40-20:35 JJP354,18:55-20:50 APJ218,19:35-21:30 APJ220,20:20-22:15 APJ224
+OKA>UKB|10:20-12:10 SKY592,11:30-13:20 ANA2526,11:30-13:20 SNA126,12:10-14:00 SKY594,15:00-16:50 ANA2528,15:00-16:50 SNA128,16:40-18:30 SKY596,20:20-22:10 SKY598,20:30-22:20 ANA2530,20:30-22:20 SNA130
+FUK>ITM|08:55-10:00 ANA420,10:35-11:35 JAL2052,11:00-12:10 ANA424,12:40-13:45 ANA1190,16:50-18:00 ANA426,18:40-19:55 JAL2060
+FUK>KIX|07:30-08:40 APJ152,12:35-13:45 APJ154,18:00-19:10 APJ156,21:00-22:10 APJ162
+NRT>ITM|17:35-19:00 ANA2177,18:25-19:55 JAL3009
+NRT>KIX|07:10-08:55 JJP217,07:30-09:10 APJ304,11:50-13:30 JJP215,13:45-15:25 APJ308,16:55-18:40 JJP213,18:40-20:25 JJP211,20:00-21:40 APJ312
+SDJ>ITM|07:35-08:55 JAL2200,07:50-09:15 ANA732,09:00-10:25 JAL2202,09:45-11:10 ANA734,11:35-12:55 JAL2204,12:50-14:10 JAL2206,13:15-14:40 ANA3152,13:15-14:40 IBX52,13:55-15:30 ANA736,14:45-16:10 JAL2210,15:00-16:25 ANA3154,15:00-16:25 IBX54,16:10-17:35 JAL2212,17:25-18:50 ANA738,18:45-20:15 JAL2216,18:45-20:20 ANA740
+SDJ>KIX|12:10-13:55 APJ132,15:10-16:55 APJ134,20:10-21:55 APJ142
+SDJ>UKB|10:05-11:35 SKY153,13:45-15:15 SKY155,17:55-19:25 SKY157
+KOJ>ITM|07:25-08:40 ANA542,07:35-08:40 JAL2400,09:00-10:05 JAL2402,09:00-10:15 ANA544,11:05-12:10 JAL2406,12:45-13:50 JAL2408,12:55-14:10 ANA546,14:40-15:45 JAL2410,15:20-16:35 ANA548,17:40-18:55 ANA550,18:05-19:15 JAL2412,18:55-20:10 ANA1162,19:10-20:30 JAL2414
+KOJ>KIX|10:25-11:35 APJ194,17:10-18:20 APJ198
+KOJ>UKB|09:00-10:05 SKY132,13:30-14:40 SKY134,21:00-22:05 SKY138
+KMJ>ITM|07:35-08:45 ANA522,09:00-10:05 JAL2382,09:00-10:10 ANA524,10:45-12:00 JAL3880,10:45-12:00 AMX801,12:30-13:40 ANA1626,15:15-16:30 ANA1628,17:10-18:15 ANA526,18:05-19:20 ANA528,19:10-20:30 JAL2392
+NGS>ITM|07:55-09:00 ANA782,09:10-10:20 JAL2372,11:40-12:55 ANA784,13:15-14:20 JAL2374,15:05-16:20 ANA786,16:30-17:35 JAL2376,17:20-18:40 ANA788,18:50-20:05 JAL2378
+NGS>KIX|15:50-17:05 APJ172
+NGS>UKB|07:20-08:25 SKY140,11:55-13:00 SKY142,17:05-18:10 SKY148
+KMI>ITM|07:35-08:35 JAL2430,07:35-08:40 ANA502,09:05-10:05 JAL2432,09:20-10:30 ANA504,11:20-12:25 ANA506,12:15-13:15 JAL2434,13:30-14:35 ANA508,17:05-18:10 ANA510,17:50-18:50 JAL2440,18:45-19:50 ANA512,18:45-20:00 JAL2444
+KMI>KIX|15:50-17:00 APJ186
+OIT>ITM|08:35-09:30 JAL2362,08:45-09:40 ANA3156,08:45-09:40 IBX56,11:00-11:55 ANA3158,11:00-11:55 IBX58,16:20-17:20 ANA1690,18:40-19:40 ANA1692,19:20-20:20 JAL2366
+MYJ>ITM|07:30-08:20 ANA1632,08:30-09:25 ANA1636,10:55-11:45 JAL2300,11:55-12:45 ANA1640,14:35-15:25 ANA1642,15:30-16:20 ANA1644,17:45-18:35 ANA1648,19:20-20:20 ANA1650,19:25-20:20 JAL2310
+KCZ>ITM|07:30-08:15 ANA1600,08:30-09:15 ANA1604,11:15-12:00 ANA1606,14:40-15:25 ANA1608,17:15-18:00 ANA1612,19:05-19:55 ANA1616
+KIJ>ITM|08:05-09:15 ANA1658,09:05-10:15 JAL2240,09:15-10:25 ANA3172,09:15-10:25 IBX72,11:45-12:55 ANA1662,12:30-13:40 JAL2244,12:30-13:50 ANA1666,15:05-16:15 JAL2246,15:45-17:00 ANA3174,15:45-17:00 IBX74,19:00-20:20 ANA3190,19:00-20:20 IBX90,19:10-20:25 JAL2250
+HKD>ITM|10:35-12:25 ANA746,13:15-15:00 JAL2124,17:45-19:35 ANA1270
+AXT>ITM|08:10-10:00 ANA1652,09:35-11:00 JAL2172,13:10-14:50 ANA1654,15:00-16:25 JAL2174,18:20-19:50 JAL2176,18:20-20:05 ANA1656
+GAJ>ITM|09:05-10:30 JAL2234,15:35-16:55 JAL2236,18:00-19:20 JAL2238
+HNA>ITM|09:20-10:50 JAL2180,13:30-14:55 JAL2182,15:25-16:50 JAL2186,18:45-20:20 JAL2190
+AOJ>ITM|08:05-10:00 ANA1852,09:50-11:25 JAL2150,13:05-15:00 ANA1854,14:00-15:35 JAL2154,17:30-19:25 ANA1856,18:40-20:25 JAL2158
+MSJ>ITM|11:20-13:00 JAL2162,17:45-19:25 JAL2166
+AKJ>ITM|11:10-13:10 JAL2112
+FKS>ITM|08:05-09:20 ANA1696,12:25-13:40 ANA3180,12:25-13:40 IBX80,17:25-18:50 ANA1698,18:25-19:40 ANA3182,18:25-19:40 IBX82
+IZO>ITM|08:20-09:05 JAL2344,11:55-12:40 JAL2346,15:35-16:20 JAL2356,19:35-20:30 JAL2358
+OKI>ITM|13:40-14:20 JAL2332
+TJH>ITM|10:10-10:45 JAL2324,18:00-18:35 JAL2326
+ASJ>ITM|12:05-13:30 JAL2464
+ASJ>KIX|15:15-16:45 APJ202
+KUM>ITM|14:35-16:15 JAL2450
+MMY>KIX|19:40-21:45 JTA128
+ISG>KIX|10:45-13:00 APJ372,19:40-21:55 APJ378,19:55-22:10 JTA086
+IBR>UKB|07:35-08:50 SKY183,10:00-11:55 SKY831,14:10-15:25 SKY185,19:50-21:05 SKY187
+SHI>UKB|13:55-15:55 SKY164
+MMJ>UKB|10:15-11:20 JAL4362,10:15-11:20 FDA233
+WKJ>CTS|11:45-12:45 ANA4842,17:05-18:05 ANA4844
+WKJ>HND|13:10-15:10 ANA572
+MBE>HND|13:00-14:50 ANA376
+MMB>CTS|08:55-09:40 JAL2710,10:50-11:45 ANA4862,14:00-14:50 JAL2714,14:35-15:25 ANA4866,18:00-18:45 JAL2718,20:00-20:50 ANA4868
+MMB>HND|09:25-11:25 JAL562,13:40-15:40 ANA4778,13:40-15:40 ADO78,14:35-16:35 JAL564,19:05-21:00 ANA4780,19:05-21:00 ADO80,20:00-21:55 JAL566
+MMB>OKD|11:15-12:05 JAL2722
+AKJ>HND|09:25-11:10 ANA4782,09:25-11:10 ADO82,10:00-11:55 JAL552,13:20-15:10 JAL554,14:30-16:15 ANA4784,14:30-16:15 ADO84,16:50-18:45 JAL556,19:40-21:25 ANA4788,19:40-21:25 ADO88,19:50-21:40 JAL558
+AKJ>NRT|15:10-17:05 JJP800
+SHB>CTS|09:25-10:25 ANA4882,13:35-14:35 ANA4884,17:40-18:40 ANA4886
+SHB>OKD|12:20-13:15 JAL2732
+SHB>HND|14:35-16:30 ANA378
+OKD>HKD|07:35-08:15 JAL2741,10:35-11:15 JAL2745,14:25-15:05 JAL2749,15:40-16:20 JAL2751,18:05-18:45 JAL2755
+OKD>KUH|08:00-08:45 JAL2761,14:10-14:55 JAL2765,16:45-17:30 JAL2767
+OKD>SHB|09:05-09:55 JAL2731
+OKD>MMB|10:00-10:45 JAL2721
+OKD>AXT|10:45-11:55 JAL2823,17:05-18:15 JAL2825
+OKD>KIJ|12:10-13:55 TOK102,16:30-18:15 TOK104
+OKD>MSJ|12:45-13:45 JAL2815
+OKD>RIS|15:00-15:55 JAL2787
+KUH>CTS|08:55-09:45 ANA4872,14:35-15:25 ANA4874,17:10-18:00 ANA4876
+KUH>OKD|09:15-10:05 JAL2762,15:25-16:15 JAL2766,18:00-18:50 JAL2768
+KUH>HND|09:50-11:40 ANA4772,09:50-11:40 ADO72,10:10-12:00 JAL540,13:45-15:35 ANA742,15:00-16:55 JAL542,18:25-20:15 ANA4774,18:25-20:15 ADO74,19:35-21:25 JAL544
+OBO>HND|08:55-10:40 ANA4762,08:55-10:40 ADO62,10:00-11:50 JAL570,13:05-14:55 JAL572,13:55-15:40 ANA4766,13:55-15:40 ADO66,16:10-18:00 JAL574,19:10-20:55 ANA4768,19:10-20:55 ADO68,19:40-21:25 JAL576
+HKD>OKD|07:50-08:30 JAL2740,08:45-09:25 JAL2742,09:35-10:15 JAL2744,13:45-14:25 JAL2748,15:40-16:20 JAL2750,16:50-17:30 JAL2752,19:15-19:55 JAL2756
+HKD>HND|08:00-09:30 ANA552,09:05-10:35 ANA4758,09:05-10:35 ADO58,09:20-10:50 JAL584,11:55-13:25 ANA554,14:50-16:20 ANA556,15:00-16:30 JAL586,16:45-18:10 ANA4760,16:45-18:10 ADO60,19:05-20:35 ANA558,19:20-20:50 JAL588
+HKD>OIR|11:45-12:15 JAL2791
+HKD>CTS|12:05-12:45 ANA4854,19:10-19:50 ANA4858
+HKD>NGO|13:30-15:10 ANA4828,13:30-15:10 ADO128
+RIS>OKD|16:25-17:15 JAL2788
+OIR>OKD|12:45-13:35 JAL2796
+AOJ>HND|07:35-08:55 JAL140,08:40-09:55 JAL142,12:00-13:20 JAL144,15:15-16:40 JAL146,17:55-19:15 JAL148,20:40-22:05 JAL150
+AOJ>NKM|10:15-11:40 JAL4422,10:15-11:40 FDA362,13:25-14:50 JAL4424,13:25-14:50 FDA364,19:50-21:15 JAL4428,19:50-21:15 FDA368
+AOJ>CTS|11:00-11:50 JAL2804,11:10-12:00 ANA1897,15:00-15:45 JAL2806,16:20-17:10 ANA1899,20:15-21:00 JAL2810
+MSJ>HND|09:55-11:20 JAL152,12:50-14:15 JAL154,16:45-18:15 JAL156,19:10-20:35 JAL158
+MSJ>OKD|13:10-14:05 JAL2816
+ONJ>HND|10:50-12:10 ANA720,14:45-16:05 ANA722,18:45-20:05 ANA724
+AXT>HND|07:30-08:40 ANA402,08:40-09:50 JAL162,09:35-10:45 ANA404,12:00-13:10 ANA406,12:05-13:20 JAL164,15:50-17:00 ANA408,17:20-18:35 JAL166,19:45-20:55 ANA410,21:00-22:10 JAL168
+AXT>CTS|10:00-11:05 ANA1831,14:35-15:45 ANA1833
+AXT>NGO|11:00-12:30 ANA4686,11:00-12:30 ORC86,17:20-18:50 ANA4688,17:20-18:50 ORC88
+AXT>OKD|12:25-13:30 JAL2824,18:45-19:50 JAL2826
+HNA>NKM|09:10-10:25 JAL4412,09:10-10:25 FDA352,15:20-16:35 JAL4416,15:20-16:35 FDA356,17:40-18:55 JAL4418,17:40-18:55 FDA358
+HNA>CTS|11:40-12:35 JAL2830,17:55-18:55 JAL2838
+HNA>FUK|13:55-16:05 JAL4524,13:55-16:05 FDA524
+SYO>HND|07:10-08:15 ANA394,08:55-10:00 ANA396,12:10-13:20 ANA398,15:20-16:25 ANA1072,17:40-18:50 ANA400
+GAJ>HND|10:00-11:10 JAL174,19:15-20:20 JAL178
+GAJ>CTS|13:40-14:50 JAL4490,13:40-14:50 FDA602
+GAJ>NKM|14:35-15:50 JAL4446,14:35-15:50 FDA386
+FKS>CTS|09:25-11:00 ANA1113
+IBR>CTS|08:50-10:15 SKY791,13:00-14:25 SKY793,18:40-20:00 SKY795
+IBR>OKA|11:00-13:50 SKY531
+CHF>NJM|08:30-09:10 NCA201,11:00-11:40 NCA203,13:20-14:00 NCA205,15:00-15:40 NCA207
+CHF>MYE|08:40-09:30 NCA401,11:25-12:15 NCA405,14:30-15:20 NCA407
+CHF>KZS|08:50-09:35 NCA301,11:15-12:00 NCA303,14:45-15:30 NCA305
+CHF>OIM|09:00-09:25 NCA101,15:35-16:00 NCA105
+OIM>CHF|09:50-10:15 NCA102,11:20-11:45 NCA104,15:35-16:00 NCA106
+OIM>MYE|14:05-14:25 TAL52
+NJM>CHF|09:30-10:10 NCA202,11:50-12:30 NCA204,13:45-14:25 NCA206,15:20-16:00 NCA208
+KZS>CHF|10:05-10:50 NCA302,12:35-13:20 NCA304,16:00-16:45 NCA306
+MYE>CHF|09:50-10:40 NCA402,12:20-13:10 NCA406,15:10-16:00 NCA408
+MYE>OIM|11:40-12:00 TAL51
+HAC>HND|09:00-09:55 ANA1892,14:00-14:55 ANA1894,17:30-18:30 ANA1896
+MMJ>CTS|12:25-14:00 JAL4352,12:25-14:00 FDA211
+MMJ>FUK|13:30-15:20 JAL4344,13:30-15:20 FDA205,16:55-18:45 JAL4348,16:55-18:45 FDA207
+TOY>HND|07:05-08:10 ANA312,11:30-12:40 ANA316,18:05-19:15 ANA322
+TOY>CTS|12:45-14:10 ANA1181
+KMQ>HND|07:35-08:45 ANA752,08:45-09:45 JAL184,11:05-12:10 JAL186,15:20-16:25 JAL188,17:00-18:15 ANA756,19:50-20:55 JAL190
+KMQ>CTS|11:20-12:50 ANA1173,14:20-15:50 ANA1175
+KMQ>FUK|09:10-10:50 ANA4645,09:10-10:50 ORC45,12:00-13:40 ANA4647,12:00-13:40 ORC47,12:55-14:35 ANA1233,16:10-17:50 ANA4649,16:10-17:50 ORC49,19:40-21:15 ANA1237
+KMQ>OKA|13:10-15:45 JTA037
+NTQ>HND|10:30-11:35 ANA748,17:10-18:20 ANA750
+FSZ>FUK|08:00-09:50 JAL4312,08:00-09:50 FDA143,16:25-18:20 JAL4314,16:25-18:20 FDA145,18:00-19:55 JAL4316,18:00-19:55 FDA147
+FSZ>CTS|10:00-11:50 JAL4323,10:00-11:50 FDA163
+FSZ>KOJ|12:05-13:55 JAL4305,12:05-13:55 FDA133
+NKM>FUK|07:00-08:35 JAL4381,07:00-08:35 FDA301,08:00-09:35 JAL4383,08:00-09:35 FDA303,11:20-12:55 JAL4385,11:20-12:55 FDA305,19:45-21:20 JAL4393,19:45-21:20 FDA313
+NKM>IZO|07:15-08:15 JAL4461,07:15-08:15 FDA411,09:10-10:10 JAL4463,09:10-10:10 FDA413,16:35-17:35 JAL4467,16:35-17:35 FDA417
+NKM>KMJ|07:15-08:45 JAL4401,07:15-08:45 FDA321,18:00-19:30 JAL4409,18:00-19:30 FDA327
+NKM>KCZ|07:35-08:40 JAL4375,07:35-08:40 FDA341,11:10-12:15 JAL4377,11:10-12:15 FDA343
+NKM>AOJ|07:50-09:10 JAL4421,07:50-09:10 FDA361,14:20-15:40 JAL4425,14:20-15:40 FDA365,17:20-18:40 JAL4427,17:20-18:40 FDA367
+NKM>HNA|08:30-09:40 JAL4411,08:30-09:40 FDA351,12:20-13:30 JAL4413,12:20-13:30 FDA353,16:45-17:55 JAL4417,16:45-17:55 FDA357
+NKM>GAJ|11:55-13:00 JAL4443,11:55-13:00 FDA383
+NKM>KIJ|10:20-11:15 JAL4433,10:20-11:15 FDA373,18:25-19:20 JAL4437,18:25-19:20 FDA377
+NGO>CTS|06:40-08:25 SJO751,07:10-08:50 SKY761,07:10-08:55 APJ461,07:45-09:25 ANA701,07:55-09:35 JAL3101,08:40-10:25 ANA703,12:35-14:15 JAL3107,12:35-14:20 SKY765,13:50-15:30 ANA707,15:45-17:25 ANA4835,15:45-17:25 ADO135,17:15-18:55 JAL3117,17:25-19:10 APJ465,17:45-19:25 ANA715,18:00-19:45 SKY767
+NGO>FUK|08:00-09:30 ANA3859,08:00-09:30 SFJ59,12:15-13:45 ANA3863,12:15-13:45 SFJ63,13:15-14:55 JJP583,13:45-15:20 ANA3159,13:45-15:20 IBX59,17:45-19:20 JJP587,18:20-19:55 ANA3869,18:20-19:55 SFJ69,19:20-20:50 ANA447,19:30-21:05 JJP589,19:45-21:30 ANA4655,19:45-21:30 ORC55
+NGO>OKA|06:05-08:30 SKY551,08:00-10:35 SKY553,08:20-10:55 ANA303,08:25-10:55 JTA045,08:35-11:15 APJ487,10:00-12:40 JJP381,12:00-14:35 ANA2521,12:00-14:35 SNA121,14:45-17:10 ANA309,14:55-17:25 JTA047,15:30-18:10 APJ489,17:25-20:00 SKY557,17:45-20:10 ANA311,19:10-21:35 JTA049
+NGO>KOJ|06:35-08:00 SKY635,08:10-09:40 ANA2515,08:10-09:40 SNA115,13:05-14:45 ANA351,18:05-19:35 ANA2517,18:05-19:35 SNA117,20:00-21:30 SKY639
+NGO>NGS|07:20-08:55 ANA371,18:00-19:35 ANA373
+NGO>HND|07:25-08:25 JAL202,07:25-08:25 ANA086,21:15-22:15 JAL208
+NGO>MYJ|07:30-08:35 ANA3133,07:30-08:35 IBX33,10:30-11:35 ANA3135,10:30-11:35 IBX35,16:50-17:55 ANA3137,16:50-17:55 IBX37
+NGO>SDJ|08:15-09:25 ANA361,10:10-11:25 APJ491,11:55-13:05 ANA363,13:30-14:35 ANA3121,13:30-14:35 IBX21,14:40-15:45 ANA3123,14:40-15:45 IBX23,19:55-21:00 ANA3125,19:55-21:00 IBX25
+NGO>NRT|08:20-09:30 JAL3082,14:00-15:20 ANA494,14:25-15:40 JAL3084
+NGO>AXT|09:10-10:30 ANA4685,09:10-10:30 ORC85,15:30-16:50 ANA4687,15:30-16:50 ORC87
+NGO>OIT|09:15-10:30 ANA3161,09:15-10:30 IBX61,17:45-19:00 ANA3165,17:45-19:00 IBX65
+NGO>KMI|09:30-10:50 ANA2507,09:30-10:50 SNA107,13:00-14:30 ANA4689,13:00-14:30 ORC89,19:40-21:00 ANA2509,19:40-21:00 SNA109
+NGO>KMJ|10:35-12:05 JAL4535,10:35-12:05 FDA923,14:35-16:05 JAL4537,14:35-16:05 FDA925
+NGO>ISG|11:00-14:00 ANA579
+NGO>HKD|11:20-12:50 ANA4827,11:20-12:50 ADO127
+NGO>MMY|11:25-14:15 ANA329
+NGO>KIJ|10:30-11:40 TOK402,16:50-18:00 TOK404
+NGO>KCZ|18:25-19:30 JAL4517,18:25-19:30 FDA947
+SHM>HND|09:30-10:40 JAL212,13:50-15:00 JAL214,18:30-19:40 JAL218
+OKJ>HND|07:05-08:20 ANA652,07:15-08:25 JAL232,09:30-10:45 ANA654,10:35-11:45 JAL234,12:45-13:55 JAL236,14:05-15:20 ANA656,17:15-18:30 JAL240,17:50-19:10 ANA658,19:00-20:10 JAL242,20:00-21:15 ANA660
+OKJ>CTS|12:00-13:50 ANA379
+OKJ>OKA|08:40-10:50 JTA013
+YGJ>HND|07:20-08:45 ANA382,08:50-10:10 ANA384,11:00-12:25 ANA386,14:00-15:25 ANA1088,17:20-18:50 ANA388,20:05-21:30 ANA390
+TTJ>HND|07:05-08:15 ANA292,08:55-10:10 ANA294,11:10-12:25 ANA296,15:00-16:15 ANA298,18:30-19:45 ANA300
+IWJ>HND|11:25-12:55 ANA726,17:50-19:25 ANA728
+HIJ>HND|07:35-09:00 ANA672,07:40-09:00 JAL252,09:20-10:45 ANA674,09:25-10:45 JAL254,10:25-11:45 ANA676,12:25-13:40 JAL256,12:40-14:05 ANA678,13:50-15:10 JAL258,15:55-17:25 ANA680,16:35-17:55 JAL262,17:15-18:45 ANA682,18:15-19:40 JAL264,19:00-20:25 ANA684,20:25-21:50 ANA686,20:40-22:00 JAL266
+HIJ>CTS|08:05-10:00 ANA1271,10:45-12:40 JAL3403
+HIJ>SDJ|10:25-11:45 ANA3140,10:25-11:45 IBX40,16:30-17:50 ANA3142,16:30-17:50 IBX42,19:20-20:40 ANA3144,19:20-20:40 IBX44
+HIJ>OKA|11:20-13:15 ANA1861
+IWK>HND|07:35-09:05 ANA632,09:05-10:30 ANA634,14:25-15:50 ANA636,17:35-19:05 ANA638,19:25-20:50 ANA640
+IWK>OKA|11:45-13:50 ANA1267
+UBJ>HND|07:40-09:10 JAL290,07:40-09:15 ANA692,10:00-11:25 JAL292,10:00-11:30 ANA3812,10:00-11:30 SFJ12,12:40-14:10 ANA696,14:55-16:20 JAL294,15:15-16:50 ANA3814,15:15-16:50 SFJ14,18:20-19:55 ANA700,19:15-20:40 JAL296,20:10-21:45 ANA3816,20:10-21:45 SFJ16
+TAK>HND|07:05-08:20 JAL474,07:10-08:25 ANA532,09:20-10:35 ANA534,09:50-11:00 JAL476,11:40-12:55 JAL478,13:35-14:50 JAL480,13:35-14:50 ANA536,15:20-16:40 JAL482,15:35-16:50 ANA998,16:50-18:05 JAL484,17:20-18:35 ANA538,19:35-20:50 ANA540,20:45-21:55 JAL486
+TAK>NRT|09:45-11:10 JJP440,20:35-22:00 JJP448
+TAK>OKA|11:40-13:50 ANA1621
+TKS>HND|07:45-08:55 JAL452,08:55-10:05 JAL454,10:55-12:10 ANA282,12:15-13:30 JAL456,15:00-16:10 JAL460,15:30-16:45 ANA284,17:45-19:00 JAL462,19:20-20:35 ANA286,20:25-21:40 JAL464
+TKS>FUK|11:30-12:40 JAL3564,17:00-18:10 JAL3568
+MYJ>HND|07:20-08:40 ANA582,07:30-08:50 JAL430,09:40-11:05 ANA584,09:45-11:05 JAL432,11:35-12:55 ANA590,12:05-13:25 JAL434,14:15-15:35 JAL436,14:35-15:55 ANA592,16:40-18:10 ANA596,17:35-19:00 JAL438,18:35-19:55 JAL440,19:50-21:15 ANA598
+MYJ>NGO|09:05-10:00 ANA3134,09:05-10:00 IBX34,12:05-13:00 ANA3136,12:05-13:00 IBX36,18:25-19:20 ANA3138,18:25-19:20 IBX38
+MYJ>FUK|09:05-10:00 JAL3590,10:30-11:20 JAL3592,14:45-15:35 JAL3602,20:15-21:10 JAL3608
+MYJ>OKA|10:35-12:35 ANA1883
+MYJ>NRT|16:05-17:35 JJP402
+MYJ>KOJ|20:15-21:15 JAL3686
+KCZ>HND|07:05-08:20 JAL490,07:45-09:00 ANA562,09:45-11:00 JAL492,10:25-11:40 ANA564,11:20-12:35 JAL494,13:20-14:35 ANA566,15:50-17:10 JAL496,16:20-17:40 ANA568,18:20-19:40 ANA570,19:15-20:30 JAL498
+KCZ>NGO|09:10-10:05 JAL4512,09:10-10:05 FDA942
+KCZ>FUK|08:25-09:30 JAL3582,17:35-18:35 JAL3588
+KCZ>NKM|12:45-13:45 JAL4374,12:45-13:45 FDA344,20:00-21:00 JAL4378,20:00-21:00 FDA348
+KCZ>NRT|14:40-16:15 JJP426
+KMI>HND|07:35-09:05 ANA2452,07:35-09:05 SNA52,07:40-09:10 JAL688,08:15-09:50 ANA602,10:25-11:55 ANA608,10:50-12:20 JAL690,11:25-13:00 ANA2456,11:25-13:00 SNA56,12:20-13:55 ANA2458,12:20-13:55 SNA58,12:50-14:20 JAL692,13:10-14:40 ANA612,14:15-15:45 JAL694,14:25-15:55 ANA2460,14:25-15:55 SNA60,15:40-17:15 ANA614,16:50-18:30 ANA2462,16:50-18:30 SNA62,16:55-18:30 JAL696,18:40-20:10 ANA2464,18:40-20:10 SNA64,20:00-21:30 JAL698,20:25-22:00 ANA618
+KMI>FUK|08:30-09:20 JAL3624,08:35-09:30 ANA4660,08:35-09:30 ORC60,11:20-12:15 JAL3626,12:35-13:25 ANA4664,12:35-13:25 ORC64,13:20-14:15 JAL3628,14:05-15:00 JAL3630,15:05-15:55 ANA4668,15:05-15:55 ORC68,16:00-16:55 JAL3634,16:25-17:15 ANA4956,17:05-17:55 JAL3636,19:40-20:30 ANA4670,19:40-20:30 ORC70,20:30-21:30 ANA4672,20:30-21:30 ORC72,20:35-21:30 JAL3642
+KMI>NGO|07:45-08:55 ANA2508,07:45-08:55 SNA108,13:40-14:55 ANA4690,13:40-14:55 ORC90,17:55-19:05 ANA2510,17:55-19:05 SNA110
+KMI>NRT|15:25-17:10 JJP636
+KMI>OKA|09:10-10:50 ANA2467,09:10-10:50 SNA67
+KKJ>HND|07:00-08:25 ANA3872,07:00-08:25 SFJ72,08:00-09:30 ANA3874,08:00-09:30 SFJ74,09:00-10:30 ANA3876,09:00-10:30 SFJ76,10:15-11:40 ANA3878,10:15-11:40 SFJ78,10:30-11:55 JAL374,11:45-13:15 ANA3880,11:45-13:15 SFJ80,13:50-15:20 ANA3882,13:50-15:20 SFJ82,16:25-17:55 JAL376,16:30-18:00 ANA3886,16:30-18:00 SFJ86,18:00-19:35 ANA3888,18:00-19:35 SFJ88,19:40-21:10 ANA3890,19:40-21:10 SFJ90,20:55-22:20 JAL378,21:10-22:35 ANA3892,21:10-22:35 SFJ92
+HSG>HND|06:40-08:20 ANA452,09:50-11:30 ANA454,12:00-13:45 ANA982,15:45-17:30 ANA456,19:10-20:50 ANA458
+NGS>HND|07:20-09:00 JAL606,08:25-10:00 ANA662,09:50-11:25 ANA2432,09:50-11:25 SNA32,10:05-11:40 JAL608,11:20-12:55 ANA664,12:15-13:50 JAL610,12:15-13:55 ANA2434,12:15-13:55 SNA34,13:45-15:20 ANA666,15:10-16:45 JAL612,16:15-18:00 ANA2436,16:15-18:00 SNA36,17:10-18:45 JAL614,17:35-19:15 ANA1084,19:25-21:00 ANA670,20:35-22:10 JAL616,21:05-22:45 ANA2438,21:05-22:45 SNA38
+NGS>TSJ|07:30-08:05 JAL4051,07:30-08:05 ANA4651,07:30-08:05 ORC51,19:00-19:35 JAL4061,19:00-19:35 ANA4661,19:00-19:35 ORC61
+NGS>NGO|09:30-10:40 ANA372,20:15-21:25 ANA374
+NGS>FUJ|09:50-10:20 JAL4073,09:50-10:20 ANA4673,09:50-10:20 ORC73,14:45-15:15 JAL4077,14:45-15:15 ANA4677,14:45-15:15 ORC77
+NGS>NRT|11:15-12:55 JJP642
+NGS>IKI|16:50-17:20 JAL4043,16:50-17:20 ANA4643,16:50-17:20 ORC43
+OIT>HND|07:40-09:10 ANA792,07:50-09:20 JAL662,08:35-10:05 ANA2492,08:35-10:05 SNA92,10:20-11:45 ANA794,10:35-12:00 JAL664,12:05-13:35 ANA2494,12:05-13:35 SNA94,12:10-13:35 JAL668,13:25-14:50 ANA796,14:35-16:00 JAL670,16:45-18:15 JAL672,16:45-18:20 ANA2496,16:45-18:20 SNA96,18:00-19:30 ANA800,19:15-20:40 JAL674,19:55-21:25 ANA2498,19:55-21:25 SNA98
+OIT>NRT|10:35-12:10 JJP608
+OIT>NGO|11:40-12:45 ANA3162,11:40-12:45 IBX62,19:30-20:35 ANA3166,19:30-20:35 IBX66
+KMJ>HND|07:35-09:15 JAL622,07:35-09:15 ANA2412,07:35-09:15 SNA12,09:05-10:35 JAL624,09:45-11:20 ANA2414,09:45-11:20 SNA14,10:40-12:10 JAL626,10:50-12:25 ANA644,12:35-14:10 JAL628,12:45-14:20 ANA646,13:10-14:40 ANA2416,13:10-14:40 SNA16,13:55-15:25 JAL630,14:40-16:20 ANA2418,14:40-16:20 SNA18,15:45-17:20 JAL632,17:35-19:10 JAL634,18:10-19:45 ANA648,19:00-20:35 ANA2420,19:00-20:35 SNA20,20:25-21:55 JAL638,20:25-22:00 ANA650
+KMJ>NKM|09:20-10:40 JAL4402,09:20-10:40 FDA322,20:00-21:20 JAL4408,20:00-21:20 FDA328
+KMJ>NGO|12:35-13:55 JAL4534,12:35-13:55 FDA924,16:35-17:55 JAL4536,16:35-17:55 FDA926
+KMJ>NRT|10:20-12:00 JJP612,20:00-21:45 JJP616
+KMJ>AXJ|14:50-15:15 JAL3873,14:50-15:15 ANA4312,14:50-15:15 AMX202
+KMJ>OKA|11:35-13:15 ANA1867
+TSJ>NGS|08:35-09:15 JAL4052,08:35-09:15 ANA4652,08:35-09:15 ORC52,20:05-20:45 JAL4062,20:05-20:45 ANA4662,20:05-20:45 ORC62
+TSJ>FUK|08:50-09:25 JAL4080,08:50-09:25 ANA4680,08:50-09:25 ORC80,11:00-11:35 JAL4082,11:00-11:35 ANA4682,11:00-11:35 ORC82,15:20-15:55 ANA4936,17:20-17:55 ANA4938,19:40-20:15 ANA4940
+IKI>NGS|09:55-10:25 JAL4042,09:55-10:25 ANA4642,09:55-10:25 ORC42,17:50-18:20 JAL4044,17:50-18:20 ANA4644,17:50-18:20 ORC44
+FUJ>FUK|09:40-10:20 ANA4914,10:50-11:35 JAL4094,10:50-11:35 ANA4694,10:50-11:35 ORC94,17:50-18:35 JAL4096,17:50-18:35 ANA4696,17:50-18:35 ORC96
+FUJ>NGS|13:40-14:10 JAL4074,13:40-14:10 ANA4674,13:40-14:10 ORC74,15:45-16:15 JAL4076,15:45-16:15 ANA4676,15:45-16:15 ORC76
+AXJ>FUK|07:40-08:20 JAL3890,07:40-08:20 ANA4301,07:40-08:20 AMX101,15:45-16:25 JAL3894,15:45-16:25 ANA4305,15:45-16:25 AMX105,18:00-18:40 JAL3898,18:00-18:40 ANA4307,18:00-18:40 AMX107
+AXJ>KMJ|09:55-10:15 JAL3872,09:55-10:15 ANA4311,09:55-10:15 AMX201
+KOJ>HND|07:15-08:55 ANA2472,07:15-08:55 SNA72,07:20-08:55 SKY300,07:40-09:15 JAL640,07:45-09:25 ANA620,08:35-10:10 SKY302,09:00-10:35 JAL642,09:15-10:55 ANA622,10:15-11:55 ANA2474,10:15-11:55 SNA74,11:00-12:35 JAL644,11:25-13:00 SKY304,12:10-13:50 ANA624,12:45-14:20 JAL646,14:10-15:50 ANA626,14:15-15:50 JAL648,15:45-17:25 ANA2478,15:45-17:25 SNA78,16:35-18:15 ANA628,17:15-18:50 JAL650,19:05-20:40 JAL652,19:20-21:00 ANA630,19:50-21:25 SKY308,20:15-21:55 ANA2480,20:15-21:55 SNA80,21:00-22:35 JAL654
+KOJ>ASJ|07:20-08:30 JAL3721,09:05-10:20 JAL3725,10:15-11:15 JAL3727,10:20-11:15 SKY381,11:50-12:45 JAL3729,13:15-14:10 JAL3731,16:35-17:35 SKY387,16:50-17:50 JAL3735,17:15-18:30 JAL3737
+KOJ>OKE|07:25-08:50 JAL3801,12:35-14:05 JAL3803,15:00-16:25 JAL3809
+KOJ>KKX|07:40-08:50 JAL3783,13:50-15:00 JAL3785
+KOJ>TKN|07:45-09:05 JAL3791,08:50-09:55 JAL3793,13:00-14:30 JAL3795,16:15-17:20 JAL3797
+KOJ>TNE|08:10-08:50 JAL3761,11:05-11:45 JAL3763,15:25-16:05 JAL3769,16:50-17:30 JAL3777
+KOJ>KUM|08:50-09:30 JAL3741,10:30-11:10 JAL3743,13:25-14:05 JAL3745,16:50-17:35 JAL3755,17:50-18:30 JAL3759
+KOJ>OKA|09:20-10:55 ANA2483,09:20-10:55 SNA83,17:50-19:20 ANA2485,17:50-19:20 SNA85
+KOJ>NGO|10:05-11:20 ANA2516,10:05-11:20 SNA116,11:10-12:30 ANA352,15:35-16:50 SKY636,20:45-22:00 ANA2518,20:45-22:00 SNA118,21:25-22:35 SKY638
+KOJ>RNJ|11:15-12:50 JAL3825
+KOJ>FUK|12:05-13:05 JAL3654
+KOJ>FSZ|14:25-15:50 JAL4306,14:25-15:50 FDA134
+KOJ>NRT|15:45-17:30 JJP624
+KOJ>MYJ|18:50-19:45 JAL3687
+TNE>KOJ|09:20-09:55 JAL3760,12:15-12:50 JAL3764,16:35-17:10 JAL3768,18:00-18:35 JAL3772
+KUM>KOJ|10:00-10:35 JAL3740,11:45-12:20 JAL3744,13:40-14:15 JAL3746,18:10-18:45 JAL3752,19:00-19:35 JAL3756
+KUM>FUK|15:30-16:45 JAL3676,15:30-16:45 ANA4390
+KKX>KOJ|09:20-10:25 JAL3780,15:30-16:35 JAL3786
+KKX>ASJ|10:15-10:35 JAL3830,10:15-10:35 ANA4356,16:30-16:50 JAL3836,16:30-16:50 ANA4358
+ASJ>KOJ|08:50-09:40 JAL3722,11:45-12:35 JAL3726,11:55-12:50 SKY382,13:15-14:05 JAL3728,14:40-15:30 JAL3730,17:30-18:35 JAL3734,18:15-19:10 SKY388,19:00-20:05 JAL3738
+ASJ>KKX|09:25-09:45 JAL3831,09:25-09:45 ANA4355,15:40-16:00 JAL3837,15:40-16:00 ANA4357
+ASJ>NRT|10:45-12:50 APJ546
+ASJ>TKN|10:55-11:30 JAL3841,17:55-18:30 JAL3843,17:55-18:30 ANA4363
+ASJ>RNJ|11:05-11:50 JAL3861,11:05-11:50 ANA4365
+ASJ>HND|14:25-16:20 JAL658
+ASJ>FUK|18:20-19:40 JAL3684
+TKN>ASJ|09:35-10:05 JAL3842,09:35-10:05 ANA4362,16:45-17:15 JAL3844
+TKN>KOJ|10:25-11:15 JAL3792,15:00-16:15 JAL3794,17:50-18:40 JAL3796,19:00-20:10 JAL3798
+TKN>OKE|12:05-12:30 JAL3711,12:05-12:30 ANA4367
+OKE>KOJ|09:20-10:35 JAL3800,14:35-15:50 JAL3804,16:55-18:10 JAL3808
+OKE>OKA|13:00-13:50 JAL3716,13:00-13:50 ANA4370
+OKE>TKN|15:50-16:15 JAL3710,15:50-16:15 ANA4368
+RNJ>OKA|12:30-13:15 JAL3866,14:25-15:00 RAC816
+RNJ>KOJ|13:15-14:45 JAL3826
+KTD>OKA|12:50-13:55 RAC842
+MMD>OKA|09:25-10:30 RAC862,15:50-16:55 RAC864
+UEO>OKA|08:45-09:20 RAC872,10:55-11:30 RAC874,15:40-16:20 JTA212,16:45-17:20 RAC880,18:25-19:00 RAC882
+MMY>ISG|08:50-09:25 ANA1791,11:35-12:05 RAC831,17:45-18:15 RAC839
+MMY>TRA|09:25-09:50 RAC891,15:45-16:10 RAC897
+MMY>OKA|08:55-09:45 JTA552,09:45-10:40 ANA1722,11:00-11:50 JTA556,11:40-12:40 ANA1724,12:15-13:05 JTA558,13:10-14:00 JTA560,13:30-14:25 ANA1726,15:35-16:25 ANA1728,16:00-16:50 JTA562,17:30-18:20 JTA564,18:10-19:00 JTA572,18:30-19:20 ANA1730,20:05-21:00 RAC804
+MMY>HND|11:55-14:25 ANA1080,14:45-17:25 JAL934,16:15-18:45 ANA088
+MMY>NGO|14:55-17:10 ANA330
+SHI>OKA|12:45-13:35 SKY542,15:20-16:05 SKY546
+SHI>HND|17:15-19:45 SKY618
+TRA>MMY|10:20-10:45 RAC892,16:50-17:15 RAC898
+ISG>FUK|15:15-17:20 APJ294
+ISG>HND|10:40-13:20 JAL972,12:20-14:55 ANA090,15:50-18:30 ANA092,19:20-22:00 JAL974
+ISG>MMY|08:30-09:05 ANA1792,14:45-15:15 RAC834,19:05-19:35 RAC838
+ISG>NGO|14:40-17:00 ANA580
+ISG>NRT|13:05-15:55 APJ528
+ISG>OGN|10:05-10:35 RAC741,12:35-13:05 RAC743,17:40-18:10 RAC747
+ISG>OKA|09:00-10:00 JTA600,10:10-11:15 ANA1764,11:15-12:15 ANA1768,11:25-12:25 JTA608,13:20-14:20 ANA2444,13:20-14:20 SNA44,13:30-14:30 JTA612,14:10-15:10 JTA614,14:15-15:15 ANA1770,16:15-17:10 ANA1774,16:25-17:25 JTA622,17:50-18:45 ANA1780,18:45-19:45 JTA626,18:50-19:50 ANA2450,18:50-19:50 SNA50
+OGN>ISG|09:05-09:35 RAC742,13:35-14:05 RAC744,16:40-17:10 RAC746
+OGN>OKA|11:20-12:35 RAC724,18:40-19:55 RAC728
+SDJ>CTS|07:35-08:50 ANA3145,07:35-08:50 IBX45,07:45-08:55 JAL2901,09:00-10:20 APJ413,09:20-10:35 JAL2903,09:30-10:45 ANA4801,09:30-10:45 ADO101,11:10-12:25 ANA3147,11:10-12:25 IBX47,12:15-13:25 JAL2905,13:35-14:55 ANA1227,14:35-15:50 ANA4807,14:35-15:50 ADO107,15:55-17:10 ANA1229,16:40-18:00 APJ419,17:15-18:25 JAL2907,18:10-19:25 ANA3149,18:10-19:25 IBX49,19:45-21:00 ANA4811,19:45-21:00 ADO111,20:25-21:30 JAL2909
+SDJ>NGO|07:35-08:45 ANA3120,07:35-08:45 IBX20,09:55-11:20 ANA364,12:05-13:15 ANA3122,12:05-13:15 IBX22,15:10-16:20 ANA3124,15:10-16:20 IBX24,18:35-19:50 APJ494,20:25-21:50 ANA370
+SDJ>HIJ|08:05-09:45 ANA3139,08:05-09:45 IBX39,14:10-15:50 ANA3141,14:10-15:50 IBX41,17:00-18:40 ANA3143,17:00-18:40 IBX43
+SDJ>FUK|08:10-10:25 ANA3110,08:10-10:25 IBX10,10:30-12:45 ANA3896,10:30-12:45 SFJ96,11:35-13:50 JAL4528,11:35-13:50 FDA532,14:45-17:00 ANA3114,14:45-17:00 IBX14,16:15-18:30 ANA3116,16:15-18:30 IBX16,17:05-19:20 JAL4530,17:05-19:20 FDA536,19:10-21:20 ANA3898,19:10-21:20 SFJ98
+SDJ>OKA|11:55-15:05 ANA1863
+SDJ>IZO|12:45-14:30 JAL4539,12:45-14:30 FDA703
+NRT>CTS|06:50-08:40 APJ559,07:00-08:40 JJP103,08:35-10:15 JJP105,08:50-10:40 APJ563,09:30-11:20 JJP107,10:35-12:25 APJ565,12:55-14:45 APJ567,13:55-15:45 JJP109,14:40-16:30 JJP115,14:45-16:35 APJ571,15:35-17:25 APJ573,16:50-18:40 APJ575,17:35-19:20 SJO835,17:50-19:40 ANA2155,18:00-19:50 JJP119,18:10-20:00 APJ579
+NRT>FUK|07:00-09:20 APJ349,08:00-10:20 APJ351,08:10-10:30 JJP505,10:10-12:30 APJ355,10:35-12:55 JJP507,11:30-13:55 JJP509,12:30-14:50 APJ359,13:05-15:30 JJP511,15:25-17:55 JJP513,16:10-18:30 APJ365,18:35-20:55 APJ367
+NRT>NGO|10:30-11:40 JAL3083,17:25-18:40 ANA493,18:35-19:50 JAL3087
+NRT>TAK|07:30-09:10 JJP449,18:10-20:00 JJP445
+NRT>MYJ|07:35-09:30 JJP401,13:35-15:30 JJP405
+NRT>KCZ|12:15-14:05 JJP423
+NRT>KMI|12:15-14:30 JJP635
+NRT>KMJ|07:20-09:40 JJP611,17:00-19:20 JJP615
+NRT>KOJ|12:50-15:10 JJP623
+NRT>OIT|08:00-10:00 JJP609
+NRT>NGS|08:15-10:40 JJP641
+NRT>AKJ|12:40-14:30 JJP801
+NRT>HKD|08:35-10:10 SJO857
+NRT>ASJ|07:15-10:05 APJ545
+NRT>ISG|08:20-12:10 APJ527
+NRT>OKA|07:45-11:20 JJP337,08:10-11:40 APJ501,12:50-16:15 JJP335,14:00-17:30 APJ507,15:40-19:15 JJP331,16:25-19:55 APJ511,19:00-22:35 JJP339
+KIJ>CTS|07:35-09:00 ANA1857,11:50-13:05 JAL4484,11:50-13:05 FDA614,14:30-15:55 ANA1859,15:45-17:00 JAL4486,15:45-17:00 FDA616
+KIJ>NGO|09:30-10:50 TOK405,14:55-16:15 TOK403
+KIJ>FUK|09:55-11:55 ANA3184,09:55-11:55 IBX84,12:45-14:45 JAL4476,12:45-14:45 FDA504,19:30-21:30 ANA3188,19:30-21:30 IBX88
+KIJ>OKD|10:05-11:40 TOK101,14:25-16:00 TOK103
+KIJ>NKM|18:10-19:10 JAL4436,18:10-19:10 FDA376
+CTS>HND|07:30-09:10 JAL590,07:30-09:10 ANA050,07:45-09:25 JAL500,08:00-09:35 ANA4712,08:00-09:35 ADO12,08:10-09:55 SKY706,08:30-10:10 ANA052,08:50-10:30 JAL502,09:00-10:35 ANA4714,09:00-10:35 ADO14,09:30-11:10 ANA054,09:55-11:40 JAL504,10:20-12:00 ANA4716,10:20-12:00 ADO16,10:30-12:15 JAL506,10:30-12:10 ANA056,10:35-12:20 SKY710,11:20-13:00 ANA4718,11:20-13:00 ADO18,11:30-13:10 ANA058,11:35-13:20 SKY712,11:40-13:25 JAL508,12:00-13:40 ANA060,12:20-14:00 ANA4720,12:20-14:00 ADO20,12:30-14:10 ANA062,13:00-14:40 JAL510,13:10-14:55 SKY714,13:30-15:10 ANA064,13:30-15:10 ANA4724,13:30-15:10 ADO24,14:10-15:55 JAL512,14:30-16:10 ANA066,14:40-16:25 SKY716,15:00-16:40 ANA4726,15:00-16:40 ADO26,15:10-16:55 JAL514,15:30-17:10 ANA068,15:45-17:30 JAL516,15:45-17:25 ANA1104,16:10-17:50 ANA4728,16:10-17:50 ADO28,16:15-17:55 SKY720,16:30-18:15 ANA070,16:55-18:35 ANA1106,17:15-19:00 JAL518,17:30-19:10 ANA074,18:00-19:45 JAL522,18:00-19:35 ANA4732,18:00-19:35 ADO32,18:30-20:10 ANA076,19:10-20:55 SKY726,19:30-21:10 ANA078,19:35-21:15 JAL524,20:00-21:40 ANA4736,20:00-21:40 ADO36,20:10-21:55 JAL526,20:30-22:10 ANA082,20:55-22:40 JAL528,21:00-22:40 ANA4738,21:00-22:40 ADO38,21:00-22:40 SKY730,21:15-23:00 JAL530,21:25-23:10 ANA084,21:45-23:30 ANA988,21:45-23:30 ANA4744,21:45-23:30 ADO44
+CTS>MMB|07:35-08:20 JAL2713,09:30-10:20 ANA4861,12:45-13:30 JAL2715,13:15-14:05 ANA4865,16:45-17:30 JAL2719,18:40-19:30 ANA4867
+CTS>KUH|07:40-08:25 ANA4871,13:20-14:05 ANA4873,15:55-16:40 ANA4875
+CTS>SDJ|07:40-08:50 JAL2900,07:50-09:00 ANA4800,07:50-09:00 ADO100,09:25-10:40 ANA3146,09:25-10:40 IBX46,11:10-12:20 JAL2902,12:55-14:05 ANA4806,12:55-14:05 ADO106,13:00-14:15 ANA3148,13:00-14:15 IBX48,13:05-14:10 JAL2904,13:15-14:30 APJ414,14:05-15:15 ANA1224,16:40-17:55 APJ418,18:00-19:10 ANA4810,18:00-19:10 ADO110,18:30-19:50 ANA1230,18:45-19:55 JAL2906,19:45-20:50 JAL2910,20:00-21:15 ANA3150,20:00-21:15 IBX50
+CTS>SHB|08:00-08:55 ANA4881,12:15-13:05 ANA4883,16:20-17:10 ANA4885
+CTS>FUK|08:25-11:10 ANA4812,08:25-11:10 ADO112,10:30-13:15 SKY772,11:20-14:00 JAL3510,13:50-16:25 JAL3512,14:20-17:05 ANA1278,16:30-19:25 APJ456,17:10-19:55 JJP984,17:40-20:30 JAL4472,17:40-20:30 FDA518,18:45-21:30 ANA1280
+CTS>NGO|08:50-10:45 ANA4830,08:50-10:45 ADO130,10:00-11:50 JAL3106,10:05-11:55 ANA706,11:10-13:00 ANA710,14:20-16:20 APJ466,14:40-16:30 JAL3114,15:30-17:20 SKY764,17:30-19:20 SKY766,18:35-20:25 ANA712,19:40-21:30 JAL3118,20:05-21:55 ANA714,20:50-22:50 APJ468,20:55-22:45 SKY768
+CTS>HNA|09:25-10:25 JAL2831,15:40-16:40 JAL2839
+CTS>NRT|09:10-10:55 SJO834,09:30-11:20 APJ568,09:30-11:25 JJP102,10:00-11:50 APJ570,10:20-12:10 JJP124,11:05-13:00 JJP104,11:10-13:00 APJ574,12:00-13:50 APJ576,12:00-13:50 JJP108,12:45-14:30 JJP110,13:40-15:30 ANA2154,15:35-17:25 APJ578,18:10-19:55 JJP116,18:15-20:05 APJ582,19:10-21:00 APJ584,20:30-22:20 APJ590,20:40-22:25 JJP120
+CTS>IBR|09:25-10:50 SKY790,11:25-12:50 SKY792,20:00-21:25 SKY796
+CTS>WKJ|10:15-11:15 ANA4841,15:30-16:30 ANA4843
+CTS>AOJ|10:15-11:00 JAL2803,11:40-12:35 ANA1898,14:00-14:50 JAL2805,16:05-17:00 ANA1900,18:55-19:45 JAL2809
+CTS>TOY|10:35-12:10 ANA1182
+CTS>HKD|10:55-11:35 ANA4853,17:55-18:35 ANA4857
+CTS>KIJ|10:45-12:10 JAL4483,10:45-12:10 FDA613,12:25-13:55 ANA1858,13:45-15:10 JAL4485,13:45-15:10 FDA615,19:20-20:50 ANA1860
+CTS>AXT|11:30-12:40 ANA1832,16:35-17:45 ANA1834
+CTS>OKA|11:40-15:40 APJ273
+CTS>KMQ|11:55-13:35 ANA1174,14:40-16:25 ANA1176
+CTS>GAJ|12:40-14:00 JAL4491,12:40-14:00 FDA603
+CTS>OKJ|15:00-17:10 ANA380
+CTS>HIJ|15:00-17:10 JAL3406,18:40-20:55 ANA1272
+CTS>FKS|15:15-16:50 ANA1114
+CTS>FSZ|15:25-17:25 JAL4324,15:25-17:25 FDA166
+CTS>MMJ|14:35-16:20 JAL4353,14:35-16:20 FDA216
+OKA>FUK|07:10-08:50 JTA050,07:20-09:00 ANA1200,09:00-10:35 ANA1202,10:05-11:55 APJ282,10:15-11:55 SKY500,10:40-12:20 ANA2502,10:40-12:20 SNA102,10:50-12:25 ANA1204,11:10-13:00 APJ284,11:35-13:10 JTA052,11:50-13:30 ANA1206,13:05-14:45 JTA054,14:20-16:00 ANA1208,15:00-16:50 APJ288,15:15-16:55 JTA058,15:45-17:25 SKY506,15:50-17:30 ANA1210,17:15-19:00 ANA1212,18:20-20:00 JTA060,18:20-20:00 ANA1214,19:15-20:55 SKY508,19:30-21:10 ANA1216,19:40-21:25 JTA062,19:40-21:30 APJ292
+OKA>MMY|07:15-08:15 JTA551,07:20-08:15 ANA1721,08:00-08:55 RAC801,10:05-11:00 ANA1723,10:40-11:35 JTA557,11:35-12:30 JTA559,11:55-12:50 ANA1725,14:00-14:55 ANA1727,14:10-15:10 JTA563,15:50-16:50 JTA565,16:35-17:30 JTA571,16:55-17:50 ANA1729,18:05-19:00 JTA573
+OKA>ISG|07:15-08:20 JTA601,09:30-10:35 ANA1765,09:40-10:45 JTA605,11:40-12:45 ANA2443,11:40-12:45 SNA43,12:30-13:30 JTA609,12:35-13:40 ANA1767,14:30-15:35 ANA1771,14:40-15:45 JTA617,16:05-17:10 ANA1777,17:15-18:15 ANA2449,17:15-18:15 SNA49,17:30-18:35 JTA621,18:10-19:15 JTA625,19:25-20:25 ANA1781
+OKA>OGN|07:15-08:35 RAC721,14:50-16:10 RAC727
+OKA>HND|07:30-09:40 JAL900,07:40-09:50 SKY510,07:50-10:00 JAL980,08:00-10:15 ANA460,09:10-11:25 SKY512,10:15-12:30 ANA2422,10:15-12:30 SNA22,10:20-12:35 JAL902,10:20-12:40 ANA994,10:55-13:10 SKY514,11:10-13:25 JAL904,11:35-13:50 JAL906,11:35-13:55 ANA462,12:05-14:25 ANA464,12:15-14:30 JAL908,13:00-15:25 ANA996,13:40-15:55 JAL910,14:10-16:30 JAL912,14:10-16:25 SKY516,14:20-16:40 ANA468,15:00-17:25 JAL988,15:05-17:25 ANA470,15:20-17:40 ANA2424,15:20-17:40 SNA24,15:40-18:00 JAL914,16:45-19:00 SKY518,16:55-19:15 ANA472,18:00-20:15 JAL916,18:35-20:50 ANA474,18:50-21:00 JAL918,19:10-21:25 ANA476,19:45-22:00 JAL920,20:00-22:15 ANA1096,20:25-22:35 ANA2426,20:25-22:35 SNA26,20:45-23:00 ANA1098,20:45-22:55 SKY522,20:50-23:05 JAL922,20:55-23:10 ANA478,21:10-23:25 ANA1134
+OKA>NRT|07:30-09:55 JJP338,12:00-14:30 APJ502,12:10-14:45 JJP332,13:25-16:00 JJP334,16:40-19:10 APJ506,18:30-21:00 APJ508,20:05-22:25 JJP336
+OKA>KOJ|07:30-08:45 ANA2484,07:30-08:45 SNA84,19:55-21:10 ANA2486,19:55-21:10 SNA86
+OKA>MMD|08:00-08:55 RAC861,14:20-15:20 RAC863
+OKA>KTD|11:15-12:15 RAC841
+OKA>NGO|09:55-11:50 SKY552,11:45-13:45 ANA304,12:05-14:05 JTA042,12:30-14:30 APJ486,14:45-16:50 ANA306,15:30-17:30 ANA2522,15:30-17:30 SNA122,16:25-18:20 JTA044,16:55-18:55 JJP380,18:00-20:00 ANA308,19:25-21:15 SKY554,20:10-22:05 JTA046,20:35-22:25 SKY556,20:40-22:35 JTA048,20:40-22:40 APJ490
+OKA>UEO|07:45-08:15 RAC871,09:55-10:25 RAC873,12:15-12:50 RAC877,14:30-15:05 JTA211,15:40-16:15 RAC879,17:25-17:55 RAC881,18:05-18:40 RAC883
+OKA>SHI|11:10-12:05 SKY541,15:40-16:35 SKY547
+OKA>KMQ|10:25-12:30 JTA036
+OKA>SDJ|14:10-16:45 ANA1864
+OKA>MYJ|13:10-14:50 ANA1884
+OKA>RNJ|13:15-13:55 RAC815
+OKA>ASJ|13:50-14:50 JAL3867,13:50-14:50 ANA4379
+OKA>OKE|14:35-15:20 JAL3715,14:35-15:20 ANA4369
+OKA>TAK|14:40-16:30 ANA1622
+OKA>HIJ|16:40-18:20 ANA1862
+OKA>KMI|16:45-18:05 ANA2468,16:45-18:05 SNA68
+OKA>KMJ|15:05-16:30 ANA1868
+OKA>IWK|15:10-16:50 ANA1268
+OKA>IBR|15:05-17:25 SKY532
+OKA>CTS|12:15-15:30 APJ274
+OKA>OKJ|19:00-20:45 JTA016
+FUK>HND|07:00-08:35 JAL300,07:00-08:35 ANA3840,07:00-08:35 ANA240,07:00-08:35 SKY002,07:00-08:35 SFJ40,07:25-09:00 JAL302,07:45-09:25 ANA242,08:20-09:50 JAL304,08:20-10:00 ANA244,09:00-10:25 SKY004,09:20-10:55 JAL306,09:25-11:00 ANA3842,09:25-11:00 SFJ42,09:45-11:25 ANA1076,10:00-11:40 JAL308,10:15-11:55 ANA246,10:20-11:55 SKY006,11:00-12:40 JAL310,11:20-13:00 ANA248,11:45-13:25 ANA250,11:55-13:30 SKY008,12:00-13:40 JAL312,12:00-13:40 ANA3844,12:00-13:40 SFJ44,12:15-13:55 ANA252,12:40-14:20 SKY010,13:00-14:35 JAL314,13:00-14:40 ANA3846,13:00-14:40 SFJ46,13:25-15:05 ANA254,13:50-15:25 SKY012,14:05-15:40 JAL316,14:15-15:55 ANA256,14:30-16:10 ANA3848,14:30-16:10 SFJ48,14:45-16:25 JAL318,14:50-16:30 SKY014,15:15-16:55 SKY016,15:30-17:10 ANA258,15:55-17:35 JAL320,15:55-17:45 ANA3850,15:55-17:45 SFJ50,16:15-18:00 ANA260,16:15-17:55 SKY018,16:40-18:20 JAL322,17:05-18:45 ANA262,17:20-19:00 JAL324,17:40-19:20 ANA264,17:40-19:20 SKY020,18:00-19:35 JAL326,18:00-19:40 ANA1078,18:30-20:10 ANA266,18:45-20:20 SKY022,18:55-20:30 JAL328,19:05-20:40 ANA3852,19:05-20:40 SFJ52,19:15-20:55 ANA268,19:55-21:35 ANA270,20:05-21:45 JAL330,20:05-21:40 SKY024,20:40-22:15 JAL388,20:50-22:25 ANA272,21:05-22:40 ANA3854,21:05-22:40 SFJ54,21:10-22:45 JAL332,21:15-22:45 SKY026,21:25-23:00 ANA274
+FUK>KCZ|07:05-07:55 JAL3581,16:10-17:00 JAL3587
+FUK>OKA|07:05-08:50 ANA1201,07:15-09:00 JTA051,08:00-09:50 ANA1203,08:00-09:45 SKY503,09:35-11:25 JTA053,09:35-11:35 APJ281,09:50-11:45 ANA1205,10:30-12:20 SKY505,11:35-13:30 ANA1207,13:00-14:55 ANA2501,13:00-14:55 SNA101,13:15-15:10 ANA1209,13:55-15:45 JTA057,14:00-15:55 APJ285,14:15-16:10 ANA1211,15:30-17:15 JTA061,16:55-18:50 APJ287,17:00-18:50 ANA1213,17:00-18:50 SKY509,17:35-19:30 APJ291,17:40-19:30 JTA063,18:30-20:20 ANA1215,19:50-21:35 ANA1217,20:45-22:30 JTA065
+FUK>NGO|07:10-08:30 ANA4656,07:10-08:30 ORC56,07:50-09:05 JJP580,09:00-10:15 ANA434,10:15-11:35 ANA3858,10:15-11:35 SFJ58,11:10-12:35 JJP582,15:40-17:05 JJP584,16:00-17:15 ANA3160,16:00-17:15 IBX60,16:25-17:40 ANA3864,16:25-17:40 SFJ64,20:35-21:50 ANA3868,20:35-21:50 SFJ68
+FUK>ASJ|07:10-08:20 JAL3681
+FUK>KIJ|07:15-08:45 ANA3183,07:15-08:45 IBX83,15:55-17:35 JAL4477,15:55-17:35 FDA505,17:30-19:00 ANA3187,17:30-19:00 IBX87
+FUK>IZO|07:15-08:20 JAL3551,17:25-18:30 JAL3555
+FUK>KMQ|07:20-08:40 ANA4646,07:20-08:40 ORC46,10:05-11:30 ANA4648,10:05-11:30 ORC48,11:00-12:25 ANA1234,14:15-15:40 ANA4650,14:15-15:40 ORC50,17:45-19:10 ANA1238
+FUK>KMI|07:20-08:00 JAL3623,07:25-08:05 ANA4659,07:25-08:05 ORC59,10:00-10:50 JAL3625,11:20-12:05 ANA4663,11:20-12:05 ORC63,11:55-12:40 JAL3627,12:20-13:05 ANA4667,12:20-13:05 ORC67,12:50-13:35 JAL3629,15:10-15:55 ANA4955,15:45-16:30 JAL3633,17:30-18:15 JAL3635,18:25-19:05 ANA4669,18:25-19:05 ORC69,19:10-19:55 JAL3639,19:10-19:55 ANA4671,19:10-19:55 ORC71
+FUK>CTS|07:45-10:05 JAL4471,07:45-10:05 FDA511,08:10-10:30 ANA1277,10:40-13:00 ANA1279,11:10-13:30 APJ455,11:45-14:00 JAL3513,11:50-14:05 ANA4813,11:50-14:05 ADO113,14:35-16:55 JJP983,14:40-16:55 JAL3515,18:05-20:20 SKY777
+FUK>TSJ|07:45-08:20 JAL4079,07:45-08:20 ANA4679,07:45-08:20 ORC79,09:55-10:30 JAL4081,09:55-10:30 ANA4681,09:55-10:30 ORC81,14:15-14:50 ANA4935,16:15-16:50 ANA4937,18:30-19:10 ANA4939
+FUK>SDJ|08:00-09:45 ANA3897,08:00-09:45 SFJ97,09:10-11:00 JAL4529,09:10-11:00 FDA531,11:00-12:45 ANA3113,11:00-12:45 IBX13,12:25-14:10 ANA3115,12:25-14:10 IBX15,14:35-16:25 JAL4531,14:35-16:25 FDA535,16:05-17:50 ANA3899,16:05-17:50 SFJ99,19:00-20:45 ANA3119,19:00-20:45 IBX19
+FUK>NRT|08:00-09:55 APJ348,10:05-12:00 APJ352,10:35-12:25 JJP504,12:45-14:35 JJP532,13:30-15:25 APJ356,13:35-15:30 JJP508,15:30-17:25 APJ360,16:10-18:00 JJP510,18:45-20:35 JJP512,19:20-21:15 APJ364,20:05-21:55 JJP516,20:15-22:10 APJ366,20:45-22:30 JJP528
+FUK>FUJ|08:25-09:10 ANA4913,12:10-13:00 JAL4095,12:10-13:00 ANA4695,12:10-13:00 ORC95,16:35-17:20 JAL4097,16:35-17:20 ANA4697,16:35-17:20 ORC97
+FUK>AXJ|08:50-09:25 JAL3891,08:50-09:25 ANA4302,08:50-09:25 AMX102,16:55-17:30 JAL3895,16:55-17:30 ANA4306,16:55-17:30 AMX106,19:10-19:45 JAL3899,19:10-19:45 ANA4308,19:10-19:45 AMX108
+FUK>NKM|08:55-10:15 JAL4382,08:55-10:15 FDA302,15:20-16:40 JAL4390,15:20-16:40 FDA310,18:50-20:10 JAL4392,18:50-20:10 FDA312,20:00-21:20 JAL4394,20:00-21:20 FDA314
+FUK>MYJ|07:50-08:35 JAL3589,09:15-10:00 JAL3591,13:25-14:15 JAL3601,19:00-19:45 JAL3607
+FUK>MMJ|08:05-09:35 JAL4341,08:05-09:35 FDA200,10:25-11:55 JAL4345,10:25-11:55 FDA204
+FUK>TKS|09:50-10:55 JAL3563,15:25-16:25 JAL3567
+FUK>FSZ|10:05-11:30 JAL4315,10:05-11:30 FDA144,17:10-18:35 JAL4317,17:10-18:35 FDA146,19:15-20:40 JAL4319,19:15-20:40 FDA148
+FUK>ISG|12:05-14:30 APJ293
+FUK>KOJ|12:50-13:40 JAL3653
+FUK>HNA|13:30-15:25 JAL4525,13:30-15:25 FDA525
+FUK>KUM|13:45-14:55 JAL3673,13:45-14:55 ANA4377
+FUK>IBR|14:00-15:35 SKY834,18:55-20:25 SKY836
+HND>CTS|06:25-07:55 JAL501,06:30-08:00 ANA987,06:45-08:20 SKY703,06:50-08:20 ANA4711,06:50-08:20 ADO11,07:00-08:30 ANA051,07:30-09:00 JAL503,08:00-09:30 JAL505,08:00-09:30 ANA053,08:15-09:45 ANA4715,08:15-09:55 SKY705,08:15-09:45 ADO15,08:55-10:30 JAL507,09:00-10:35 ANA055,09:30-11:05 ANA057,10:00-11:35 ANA059,10:05-11:40 JAL509,10:15-11:45 ANA4719,10:15-11:45 ADO19,10:25-12:00 JAL511,11:00-12:40 ANA061,11:00-12:35 SKY711,11:15-12:45 ANA4721,11:15-12:45 ADO21,11:35-13:10 JAL513,12:00-13:35 ANA063,12:20-14:00 SKY713,12:35-14:10 JAL515,12:50-14:25 ANA4723,12:50-14:25 ADO23,13:00-14:35 ANA065,13:15-14:45 JAL517,13:25-15:00 ANA1103,13:50-15:25 ANA4725,13:50-15:25 ADO25,14:00-15:35 ANA067,14:05-15:40 SKY717,14:35-16:05 JAL519,15:00-16:35 ANA069,15:35-17:05 JAL521,15:40-17:15 ANA1105,15:50-17:20 ANA4729,15:50-17:20 ADO29,16:00-17:35 ANA071,16:40-18:15 JAL523,16:55-18:35 SKY723,17:00-18:35 ANA073,17:30-19:10 JAL525,17:50-19:20 ANA4731,17:50-19:20 ADO31,18:00-19:35 ANA075,18:35-20:05 JAL527,18:40-20:15 SKY727,18:50-20:20 ANA4735,18:50-20:20 ADO35,19:00-20:35 ANA077,19:55-21:30 JAL529,20:00-21:35 ANA079,20:15-21:50 ANA4737,20:15-21:50 ADO37,20:30-22:05 JAL599,20:30-22:05 ANA081,20:30-22:05 SKY729,20:40-22:15 JAL531,21:00-22:35 ANA4739,21:00-22:35 ADO39,21:30-23:05 ANA4743,21:30-23:05 ADO43
+HND>FUK|06:20-08:20 JAL303,06:20-08:20 ANA239,06:20-08:20 SKY001,06:40-08:45 ANA3841,06:40-08:45 SFJ41,07:00-08:55 ANA1075,07:05-09:00 JAL305,07:30-09:25 ANA241,07:30-09:35 SKY003,08:00-10:00 JAL307,08:00-09:55 ANA1077,08:30-10:30 ANA243,08:55-10:55 ANA245,09:00-11:00 JAL309,09:10-11:10 JAL311,09:10-11:15 ANA3843,09:10-11:15 SFJ43,09:15-11:20 SKY007,09:30-11:30 ANA247,10:00-12:00 JAL313,10:15-12:25 ANA3845,10:15-12:25 SFJ45,10:30-12:35 ANA249,11:05-13:05 JAL315,11:15-13:25 SKY009,11:25-13:25 ANA251,11:50-14:00 SKY011,11:55-13:50 JAL317,12:20-14:25 ANA3847,12:20-14:25 SFJ47,12:35-14:40 SKY013,12:40-14:40 ANA253,13:00-15:00 JAL319,13:30-15:25 ANA255,13:30-15:35 ANA3849,13:30-15:35 SFJ49,13:40-15:40 SKY015,13:45-15:45 JAL321,14:15-16:10 ANA257,14:20-16:25 SKY017,14:55-16:50 ANA259,15:00-17:05 SKY019,15:05-17:00 JAL323,15:45-17:45 ANA261,15:50-17:50 JAL325,16:05-18:10 SKY021,16:20-18:25 ANA3851,16:20-18:25 SFJ51,16:25-18:25 ANA263,16:55-19:05 JAL327,17:05-19:05 ANA265,17:20-19:30 SKY023,17:40-19:45 JAL387,18:00-20:00 ANA267,18:05-20:10 JAL329,18:25-20:30 ANA3853,18:25-20:35 SKY025,18:25-20:30 SFJ53,18:40-20:35 JAL331,18:55-21:00 JAL333,18:55-20:55 ANA269,19:15-21:20 ANA271,19:20-21:30 JAL335,19:35-21:40 ANA273,20:00-21:55 ANA3855,20:00-21:55 SKY027,20:00-21:55 SFJ55
+HND>OKA|06:20-09:10 JAL901,06:25-09:15 ANA461,06:30-09:30 SKY511,06:40-09:25 ANA993,06:40-09:35 ANA2421,06:40-09:35 SNA21,07:15-10:05 JAL903,07:45-10:40 ANA463,08:00-10:55 JAL905,08:20-11:10 JAL907,08:20-11:15 ANA467,08:25-11:35 SKY513,09:15-12:05 ANA995,09:40-12:30 JAL909,10:30-13:20 JAL913,10:30-13:25 ANA469,11:15-14:10 ANA471,11:30-14:20 JAL987,11:50-14:45 JAL915,13:05-16:05 SKY517,13:15-16:05 ANA473,13:40-16:35 ANA2423,13:40-16:35 SNA23,14:05-16:55 JAL917,14:45-17:35 ANA475,15:00-17:45 JAL919,15:30-18:20 ANA477,15:35-18:35 SKY519,15:55-18:45 JAL921,16:15-19:05 ANA1095,16:55-19:45 ANA1097,17:05-20:05 SKY521,17:15-20:05 JAL923,18:50-21:50 SKY523,19:00-21:55 ANA2425,19:00-21:55 SNA25,19:20-22:10 JAL989,19:55-22:35 JAL925,20:15-23:10 ANA479,20:35-23:30 ANA1133
+HND>OIT|06:20-08:05 ANA2491,06:20-08:05 SNA91,07:50-09:35 ANA791,08:05-09:45 JAL661,09:45-11:30 JAL663,09:45-11:30 ANA2493,09:45-11:30 SNA93,11:00-12:45 ANA793,12:05-13:50 JAL665,14:05-15:50 JAL667,14:30-16:10 ANA2495,14:30-16:10 SNA95,15:35-17:20 ANA797,16:50-18:35 JAL669,17:15-19:05 ANA2497,17:15-19:05 SNA97,19:15-21:00 ANA799,19:55-21:35 JAL671
+HND>KOJ|06:25-08:20 JAL641,06:35-08:30 ANA619,07:25-09:25 ANA2471,07:25-09:25 SNA71,07:45-09:45 SKY301,08:05-09:55 JAL643,08:40-10:40 SKY303,09:25-11:20 ANA621,10:05-11:55 JAL645,11:35-13:30 JAL647,11:35-13:30 ANA623,13:10-15:05 ANA2475,13:10-15:05 SNA75,13:50-15:45 ANA625,14:00-16:00 SKY307,14:25-16:15 JAL649,15:15-17:15 ANA2477,15:15-17:15 SNA77,16:35-18:25 JAL651,16:40-18:35 ANA627,18:05-20:05 ANA2479,18:05-20:05 SNA79,18:25-20:20 JAL653,18:25-20:25 SKY309,19:05-21:00 ANA629,19:30-21:25 JAL655
+HND>ISG|06:25-09:55 JAL971,08:10-11:30 ANA089,11:40-15:00 ANA091,14:35-18:05 JAL973
+HND>KMJ|06:30-08:25 JAL623,07:15-09:10 ANA2411,07:15-09:10 SNA11,08:05-09:55 JAL625,08:05-10:00 ANA641,10:00-11:50 JAL627,10:10-12:05 ANA643,10:40-12:40 ANA2413,10:40-12:40 SNA13,11:20-13:15 JAL629,12:05-14:00 ANA2415,12:05-14:00 SNA15,12:55-14:45 JAL631,15:05-16:55 JAL633,15:30-17:25 ANA645,16:35-18:25 ANA2417,17:35-19:30 JAL637,17:45-19:40 ANA647,18:40-20:40 ANA2419,18:40-20:40 SNA19,18:55-20:45 JAL639,19:00-20:55 ANA649
+HND>KMI|06:45-08:35 ANA2451,06:45-08:35 SNA51,07:50-09:40 ANA603,08:15-10:05 JAL687,09:50-11:40 JAL689,09:55-11:45 ANA2455,09:55-11:45 SNA55,10:40-12:30 ANA605,11:45-13:35 JAL691,12:00-13:50 ANA2457,12:00-13:50 SNA57,13:05-14:55 ANA609,14:30-16:15 ANA2459,14:30-16:15 SNA59,14:30-16:20 JAL693,15:30-17:20 ANA2461,15:30-17:20 SNA61,17:05-18:55 JAL695,17:40-19:30 ANA613,18:40-20:30 JAL697,18:55-20:45 ANA617,19:05-21:00 ANA2465
+HND>HIJ|06:45-08:10 JAL253,07:10-08:35 ANA671,08:15-09:40 ANA673,08:50-10:15 JAL255,09:20-10:50 ANA675,10:05-11:30 JAL257,10:25-11:55 ANA677,11:30-12:55 JAL259,14:00-15:30 ANA679,14:05-15:30 JAL263,15:00-16:30 ANA681,17:55-19:30 JAL265,18:10-19:40 ANA683,19:40-21:10 ANA685,19:55-21:25 JAL267
+HND>KCZ|07:30-08:55 JAL491,08:15-09:45 ANA561,09:15-10:40 JAL493,11:10-12:40 ANA563,13:35-15:00 JAL495,14:15-15:40 ANA565,16:15-17:40 ANA567,16:30-17:55 JAL497,18:50-20:20 ANA569,18:55-20:20 JAL499
+HND>HKD|07:05-08:25 ANA4757,07:05-08:25 ADO57,07:20-08:40 JAL585,09:45-11:05 ANA553,12:45-14:05 JAL587,12:50-14:10 ANA555,14:40-16:00 ANA4759,14:40-16:00 ADO59,16:50-18:15 ANA557,17:05-18:30 JAL589,18:25-19:45 ANA559
+HND>AKJ|07:00-08:35 ANA4781,07:00-08:35 ADO81,07:35-09:15 JAL551,11:00-12:40 JAL553,12:15-13:50 ANA4783,12:15-13:50 ADO83,14:15-15:50 JAL555,17:15-19:00 JAL557,17:15-18:50 ANA4787,17:15-18:50 ADO87
+HND>AXT|07:00-08:05 JAL161,07:45-08:50 ANA401,10:15-11:20 JAL163,10:15-11:20 ANA403,14:05-15:10 ANA405,15:20-16:25 JAL165,17:55-19:05 ANA407,19:20-20:25 JAL167,20:20-21:30 ANA409
+HND>KMQ|07:00-08:00 JAL183,09:20-10:25 JAL185,09:45-10:45 ANA753,13:30-14:35 JAL187,17:55-19:00 JAL189,20:35-21:40 ANA759
+HND>MMB|07:05-08:45 JAL565,11:15-13:00 ANA4777,11:15-13:00 ADO77,12:15-13:55 JAL567,16:45-18:30 ANA4779,16:45-18:30 ADO79,17:30-19:20 JAL569
+HND>IZO|07:05-08:30 JAL277,09:50-11:15 JAL279,14:30-15:55 JAL283,16:25-17:55 JAL285,18:10-19:40 JAL287
+HND>SYO|07:10-08:10 ANA393,10:25-11:25 ANA395,12:25-13:25 ANA1071,15:50-16:50 ANA397,20:15-21:20 ANA399
+HND>MYJ|07:15-08:50 ANA583,07:35-09:05 JAL431,09:10-10:45 ANA585,09:40-11:15 JAL433,12:00-13:35 JAL435,12:15-13:50 ANA589,14:15-15:50 ANA593,15:05-16:35 JAL437,16:10-17:45 JAL439,17:25-19:00 ANA595,19:40-21:15 JAL443,19:40-21:15 ANA599
+HND>HSG|07:15-09:15 ANA451,09:05-11:10 ANA981,13:15-15:15 ANA453,16:40-18:40 ANA455,19:25-21:30 ANA457
+HND>NGS|07:15-09:15 ANA2431,07:15-09:15 SNA31,07:30-09:25 JAL605,08:30-10:30 ANA661,09:35-11:40 ANA2433,09:35-11:40 SNA33,09:40-11:40 JAL607,10:55-12:55 ANA663,12:25-14:20 JAL609,13:00-15:05 ANA2435,13:00-15:05 SNA35,14:15-16:15 JAL611,14:45-16:45 ANA1083,16:35-18:35 ANA667,17:45-19:50 JAL613,18:20-20:30 ANA2437,18:20-20:30 SNA37,19:15-21:15 JAL615,19:15-21:15 ANA669
+HND>MMY|07:50-11:05 ANA1079,10:45-14:05 JAL933,12:00-15:15 ANA087
+HND>HAC|07:25-08:20 ANA1891,12:30-13:25 ANA1893,15:55-16:50 ANA1895
+HND>OKJ|07:25-08:45 ANA651,08:20-09:40 JAL231,10:00-11:20 ANA653,10:35-11:55 JAL233,12:05-13:25 ANA655,14:35-15:55 JAL237,17:00-18:20 JAL239,18:00-19:20 ANA657,20:00-21:20 JAL241,20:15-21:35 ANA659
+HND>UBJ|07:25-09:10 ANA3811,07:25-09:10 SFJ11,07:35-09:20 JAL291,10:15-11:55 ANA693,12:25-14:10 JAL293,12:45-14:30 ANA3813,12:45-14:30 SFJ13,16:00-17:40 ANA697,16:35-18:20 JAL295,17:40-19:30 ANA3815,17:40-19:30 SFJ15,19:00-20:45 ANA699,19:05-20:50 JAL297
+HND>AOJ|07:30-08:45 JAL141,09:15-10:30 JAL143,13:00-14:20 JAL145,16:00-17:15 JAL147,18:45-20:00 JAL149,19:45-21:00 JAL151
+HND>TAK|06:55-08:15 ANA531,07:40-09:00 JAL475,09:25-10:50 ANA533,09:35-11:00 JAL477,11:30-12:50 JAL479,11:30-12:55 ANA535,13:15-14:35 JAL481,13:35-14:55 ANA997,14:45-16:05 JAL483,17:30-18:50 ANA537,18:40-20:05 JAL485,20:05-21:25 ANA539,20:15-21:35 JAL487
+HND>TKS|06:55-08:10 JAL453,08:55-10:15 ANA281,10:15-11:35 JAL455,12:40-13:55 JAL459,13:30-14:50 ANA283,15:35-16:50 JAL461,17:15-18:35 ANA285,18:20-19:35 JAL463,19:40-20:55 JAL465
+HND>TTJ|06:55-08:15 ANA291,09:10-10:30 ANA293,13:00-14:20 ANA295,16:30-17:50 ANA297,19:15-20:35 ANA299
+HND>KUH|07:40-09:15 ANA4771,07:40-09:15 ADO71,08:00-09:30 JAL541,11:30-13:05 ANA741,12:45-14:20 JAL543,16:15-17:50 ANA4773,16:15-17:50 ADO73,16:55-18:35 JAL545
+HND>OBO|06:55-08:25 ANA4761,06:55-08:25 ADO61,07:45-09:15 JAL573,10:50-12:25 JAL575,11:45-13:20 ANA4765,11:45-13:20 ADO65,13:50-15:20 JAL577,16:55-18:30 ANA4767,16:55-18:30 ADO67,17:15-18:55 JAL579
+HND>KKJ|07:45-09:35 ANA3873,07:45-09:35 SFJ73,07:50-09:35 JAL373,09:15-11:05 ANA3875,09:15-11:05 SFJ75,11:15-13:05 ANA3877,11:15-13:05 SFJ77,14:00-15:45 JAL375,14:00-15:50 ANA3881,14:00-15:50 SFJ81,15:35-17:25 ANA3883,15:35-17:25 SFJ83,17:05-18:55 ANA3885,17:05-18:55 SFJ85,18:35-20:20 JAL377,18:35-20:25 ANA3887,18:35-20:25 SFJ87,20:30-22:20 ANA3889,20:30-22:20 SFJ89,21:00-22:50 ANA3891,21:00-22:50 SFJ91,21:30-23:20 ANA3893,21:30-23:20 SFJ93,21:55-23:45 SFJ95
+HND>MSJ|07:50-09:10 JAL153,10:45-12:05 JAL155,14:45-16:00 JAL157,17:40-19:05 JAL159
+HND>SHM|07:45-09:00 JAL213,11:45-13:00 JAL215,16:15-17:30 JAL219
+HND>YGJ|06:50-08:15 ANA381,09:00-10:25 ANA383,11:50-13:15 ANA1087,15:20-16:45 ANA385,17:40-19:10 ANA387,19:55-21:20 ANA389
+HND>GAJ|07:20-08:25 JAL175,17:30-18:30 JAL179
+HND>IWK|06:40-08:20 ANA631,09:15-11:00 ANA633,12:00-13:45 ANA635,17:00-18:45 ANA637,20:05-21:50 ANA639
+HND>IWJ|09:05-10:45 ANA725,15:35-17:10 ANA727
+HND>NTQ|09:00-10:00 ANA747,15:05-16:05 ANA749
+HND>NGO|08:05-09:05 JAL201,19:25-20:25 ANA085,20:20-21:25 JAL209
+HND>TOY|10:05-11:05 ANA315,16:15-17:15 ANA319,19:40-20:40 ANA321
+HND>MBE|10:35-12:20 ANA375
+HND>WKJ|10:40-12:30 ANA571
+HND>SHB|12:15-13:55 ANA377
+HND>ONJ|12:40-13:50 ANA721,16:40-17:55 ANA723
+HND>SHI|11:05-14:30 SKY613
+HND>ASJ|11:15-13:40 JAL659
+`;
+const AL_NAME = {JAL:"JAL",ANA:"ANA",JTA:"JTA",IBX:"IBEX",AMX:"天草エアライン",SFJ:"スターフライヤー",JJP:"ジェットスター",APJ:"ピーチ",SKY:"スカイマーク",SNA:"ソラシドエア",ADO:"エア・ドゥ",TOK:"トキエア",FDA:"FDA",HAC:"HAC",ORC:"ORC",RAC:"RAC",SJO:"スプリング・ジャパン",NCA:"新中央航空",TAL:"東邦航空"};
+const AL_COLOR = {JAL:"#d7263d",ANA:"#1a4fa0",JTA:"#d7263d",IBX:"#5a6b7d",AMX:"#2a9d8f",SFJ:"#222",JJP:"#f28c28",APJ:"#d63a8c",SKY:"#2b6cb0",SNA:"#5aa83c",ADO:"#e0a800",TOK:"#3aa3c9",FDA:"#8e44ad"};
+const TT = {};
+const alOf = fn => /^[A-Z]{3}\d/.test(fn) ? fn.slice(0,3) : fn.slice(0,2);
+TT_RAW.trim().split("\n").forEach(line => {
+  const [od, list] = line.split("|"); const [o, d] = od.split(">");
+  const byTime = new Map();
+  list.split(",").forEach(x => {
+    const [tm, fn] = x.trim().split(" "); const [dep, arr] = tm.split("-");
+    const key = dep + "-" + arr;
+    if (!byTime.has(key)) byTime.set(key, []);
+    byTime.get(key).push(fn);
+  });
+  // 共同運航（例 ANA3155＝IBX55）だけを1便にまとめる。JAL102とANA986のような同時刻の別便は分ける。
+  const PARTNER = {ANA:["IBX","SFJ","SNA","ADO","ORC","AMX"], JAL:["AMX","FDA","ORC"]};
+  const isCS = fn => { const a = alOf(fn), n = +fn.replace(/^[A-Z]+/,""); return (a==="ANA" && n>=2400) || (a==="JAL" && n>=3800); };
+  const out = [];
+  byTime.forEach((fns, key) => {
+    const [dep, arr] = key.split("-");
+    const ops = fns.filter(f => !isCS(f)).map(f => ({dep, arr, fl:[f]}));
+    let orphan = null;
+    fns.filter(isCS).forEach(cs => {
+      const host = ops.find(g => (PARTNER[alOf(cs)]||[]).includes(alOf(g.fl[0])));
+      if (host) host.fl.push(cs);
+      else if (orphan) orphan.fl.push(cs);           // 運航会社の便名がない共同運航（例 JAL3830＝ANA4356）は1便に
+      else { orphan = {dep, arr, fl:[cs]}; ops.push(orphan); }
+    });
+    out.push(...ops);
+  });
+  (TT[o] = TT[o] || {})[d] = out.sort((a,b)=>a.dep.localeCompare(b.dep));
+});
+// 時刻表を取り込んだ空港は、路線・便数・航空会社を実データで上書き（隠岐・但馬は一部のみ）
+const TT_PARTIAL = ["OKI","TJH"];
+const TT_FULL = Object.keys(TT).filter(o => !TT_PARTIAL.includes(o));
+const alsOf = list => [...new Set(list.flatMap(f=>f.fl.map(alOf)))].map(a=>AL_NAME[a]||a).join("・");
+// 1) 両方向とも時刻表に無い推定路線を削除
+TT_FULL.forEach(o => {
+  DOM[o].filter(r => !TT[o][r.to] && !(TT[r.to] && TT[r.to][o])).forEach(r => {
+    DOM[o] = DOM[o].filter(x=>x!==r); DOM[r.to] = DOM[r.to].filter(x=>x.to!==o);
+  });
+});
+// 2) 時刻表にある路線を追加・更新
+Object.keys(TT).forEach(o => Object.keys(TT[o]).forEach(d => {
+  if (!AIRPORTS[o] || !AIRPORTS[d]) return;
+  const list = TT[o][d];
+  let r = DOM[o].find(x=>x.to===d);
+  if (!r) { r = {to:d}; DOM[o].push(r); }
+  r.al = alsOf(list); r.f = parseFreq(list.length); r.real = true;
+  if (!DOM[d].find(x=>x.to===o)) DOM[d].push({to:o, al:r.al, f:{kind:"s", n:0, txt:"時刻表なし", score:0}});
+}));
+/* ---------- 運航予定・季節運航の路線 ---------- */
+const PLANNED = [
+  {o:"ITM", d:"MMB", start:"2027-02-01", note:"2027年2月1日から毎日運航（通年化）。これまでは夏だけの季節運航", out:"10:50-12:50 JAL2103", ret:"13:25-15:50 JAL2104", src:"JALプレスリリース（2026年8月18日）"},
+  {o:"ITM", d:"OBO", start:"2026-12-01", note:"2026年12月1日から毎日運航（新規開設）", out:"11:55-13:50 JAL2133", ret:"14:25-16:40 JAL2134", src:"JALプレスリリース（2026年8月18日）"},
+];
+const TODAY = (() => { const d = new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); })();
+const startLabel = iso => { const [y,m] = iso.split("-"); return `${y}年${+m}月〜`; };
+PLANNED.forEach(p => {
+  const upcoming = TODAY < p.start;
+  [[p.o,p.d,p.out],[p.d,p.o,p.ret]].forEach(([a,b,fl]) => {
+    const [tm, fn] = fl.split(" "); const [dep, arr] = tm.split("-");
+    (TT[a] = TT[a] || {})[b] = [{dep, arr, fl:[fn]}];
+    let r = DOM[a].find(x=>x.to===b);
+    if (!r) { r = {to:b}; DOM[a].push(r); }
+    r.al = AL_NAME[alOf(fn)] || alOf(fn); r.real = true; r.plan = p;
+    r.f = upcoming ? {kind:"p", n:1, txt:startLabel(p.start), score:0.5} : parseFreq(1);
+  });
+});
+const planOf = (o,d) => PLANNED.find(p => (p.o===o&&p.d===d)||(p.o===d&&p.d===o));
+
+/* ---------- 国際線時刻表（関西発・駅探より。掲載日は路線ごとに異なる） ---------- */
+const ITT_RAW = {HND:`
+シンガポール|シンガポール|11月8日|00:05-06:40 SIN UL3335/6E3808/QF4026/AA8487/AS7349/JL35/HA5006,00:25-06:55 SIN NH843/UA7991/AC6228/SQ5905,02:10-08:35 SIN TR883/TR805,08:30-15:00 SIN SQ631/AI8161/NH6259,10:50-17:35 SIN SQ5907/NH841,10:50-17:25 SIN QF4018/UL3337/AA8468/AS7351/6E3809/JL37/HA5008,16:40-23:25 SIN NH6257/AI8163/ET1341/SQ633,22:55-05:20+1 SIN SQ635/AI8165/FJ5954/NH6251
+デリー|インド|9月20日|10:55-16:00 DEL UL3343/JL39/6E3817,11:10-16:30 DEL AI8003/NH837,11:25-17:05 DEL NH6891/AI357
+ジャカルタ|インドネシア|10月23日|10:15-16:00 CGK NH855/UA7943,11:45-17:35 CGK GA875/SK9313/AM7402/JL5011/SV6207,23:30-05:05+1 CGK NH871/UA7902
+バンコク|タイ|11月1日|00:05-05:10 BKK AC6273/NH849/TG6106/UA8003,00:10-05:05 BKK AA8485/UL3357/KC1033/6E3807/PG4152/AS7337/JL33/HA5004,00:20-05:25 BKK NH5965/TG661/TK7107,01:25-06:30 BKK TG6102/NH877,10:35-15:40 BKK TK7109/TG683/NH5599/LY8434,10:50-15:30 BKK ET1402/NH847,11:20-16:25 BKK PG4154/AS7335/AA8433/JL31/HA5002/6E3806
+マニラ|フィリピン|11月8日|01:15-04:50 MNL PR423/NH5331/AA8345,01:45-05:45 MNL JL77,09:35-13:35 MNL PR3105/NH869,15:20-19:30 MNL AA8344/PR421/NH5333
+ハノイ|ベトナム|10月28日|16:35-20:50 HAN VN385/NH9713/DL7476
+ホーチミン|ベトナム|10月29日|01:25-05:55 SGN AS7327/AA8493/JL79,02:30-07:20 SGN A12821/VJ821/W24821,17:15-21:50 SGN VN3495/UA7973/NH891
+クアラルンプール|マレーシア|11月3日|00:05-06:45 KUL NH885/UA7905,23:55-06:50+1 KUL D7523
+ソウル|韓国|11月5日|01:30-04:10 ICN NH6895/KE5706/OZ177,01:55-04:40 ICN MM809,02:00-04:50 ICN OZ9854/KE752/JL5257/VS5530/AF5367,08:10-10:45 GMP KE5708/JL91,08:40-11:05 GMP NH861/OZ9101,08:40-11:15 GMP NH6983/OZ1055,09:45-12:25 GMP JL5245/KE2106,12:05-14:25 GMP OZ1075/NH6967,12:25-15:00 GMP KE2102/JL5235,15:45-18:20 GMP JL93/KE5710,15:55-18:35 GMP OZ9103/NH865,19:30-22:05 GMP JL95/KE5712,19:50-22:25 GMP JL5237/KE2104,20:00-22:30 GMP OZ9127/NH867,20:05-22:35 GMP NH6969/OZ1035
+香港|香港|10月31日|01:45-05:45 HKG UA7933/NH813,01:55-06:10 HKG UO629/CX5629,06:35-10:55 HKG UO625/CX5625,08:50-12:30 HKG NH859/UA7907/NZ4149,09:35-13:50 HKG CX6321/AS7333/JL29/HA5001,10:10-14:25 HKG FJ5477/CX543/QR5841/JL7031,16:00-20:15 HKG CX549/QR5843/JL7039,23:55-04:15+1 HKG CX5623/UO623
+台北|台湾|11月7日|05:00-07:55 TPE IT217,05:45-08:55 TPE MM859,07:55-10:55 TSA JL5041/CI223,08:40-11:40 TSA CI9221/JL97,09:20-12:30 TSA NH851/BR2175,10:25-13:25 TSA BR189/NH5823,12:15-15:05 TSA NH5825/BR191,12:40-15:50 TSA NH853/BR2177,14:15-17:15 TSA JL5043/CI221,18:05-21:00 TSA JL99/CI9223
+広州|中国|11月8日|08:35-13:05 CAN JL87/CZ7801/MU4207,09:10-13:05 CAN NH923,09:20-13:50 CAN CA6700/ZH3202,10:45-15:00 CAN 3U7014/JL5061,10:45-15:30 CAN CZ3086,15:05-19:10 CAN CZ386/3U7052/JL5031
+上海|中国|11月7日|02:00-04:30 PVG 9C8516,02:15-05:00 PVG MM877,08:40-11:05 PVG FM3038/MU576/JL5791,09:05-11:45 SHA MU4180/FM1021/JL81,10:00-12:25 SHA CA6706/NH969,13:30-15:45 SHA MU8632/FM816/JL8271,14:25-17:05 PVG MU4182/FM1004/JL85,14:30-17:20 SHA MU538/JL5643/FM3036,16:45-19:30 PVG FM1020/JL89/MU4183,17:10-19:40 PVG FM896/JL8261/MU8634,18:35-20:40 PVG NH971,18:40-21:25 PVG HO3138/CA6698,20:15-22:40 PVG JL5604/MU540,22:30-00:35+1 PVG NH967,22:40-01:15+1 PVG CA6672/HO3136
+深圳|中国|10月2日|11:10-15:10 SZX NH965/ZH3208
+青島|中国|9月16日|09:45-12:30 TAO SC214/NH949/CA6749
+大連|中国|9月15日|09:25-11:45 DLC JL23/MU4222/CZ7817
+天津|中国|9月16日|04:00-06:00 TSN BK2222
+北京|中国|11月2日|08:30-11:40 PEK CA184,08:50-12:00 PEK MU4198/JL21/CZ7803,08:55-12:00 PEK NH961,08:55-12:15 PEK CA6708,14:20-17:40 PEK CA182,15:25-18:45 PEK CA134,15:40-18:50 PKX JL5075/3U7056/CZ648,16:40-19:50 PKX MU790/JL5679,16:55-20:15 PEK JL25/MU4199,17:00-20:15 PEK CZ7805,17:20-20:15 PEK NH963,17:25-20:35 PEK CA6654,18:00-21:20 PEK NH5761/CA168,21:00-00:20+1 PEK CA422
+トロント|カナダ|11月8日|18:50-16:55 YYZ AC2/NH6820
+バンクーバー|カナダ|10月13日|21:55-14:50 YVR UA7994/NH116/AC6248
+アトランタ|アメリカ|9月24日|16:35-16:30 ATL DL294/VN3010
+サンフランシスコ|アメリカ|10月15日|15:50-09:35 SFO UA876/NH7010,16:20-09:45 SFO AS7320/JL2/MH9102/AA8401,22:55-16:30 SFO UA7939/NH108
+シアトル|アメリカ|10月21日|16:05-09:35 SEA DL166/VN3020,21:15-14:25 SEA TG6082/UA7930/NH118
+シカゴ|アメリカ|10月29日|10:25-08:20 ORD SQ5912/TG6174/UA7912/NH112,10:50-08:30 ORD MH9110/JL10/AA8405,18:20-16:10 ORD UA882/NH7006
+ダラス|アメリカ|9月24日|10:45-08:35 DFW JL12/AA8478/MH9138,16:30-14:30 DFW JL7014/AA176
+デトロイト|アメリカ|11月8日|17:35-15:31 DTW DL274/VN3022
+ニューヨーク|アメリカ|10月27日|10:50-11:00 JFK NH110,11:05-10:50 JFK LA7463/AA8403/MH9146/JL6,11:35-11:30 JFK SQ5916/TG6096/UA7910,16:25-16:15 EWR NH7544/UA130,17:10-17:15 JFK AA168/JL7010,19:45-19:30 JFK MH9104/AA8496/LA7466/JL4,22:45-22:55 JFK NH160/UA7924
+ヒューストン|アメリカ|11月8日|10:45-07:55 IAH NH114/UA7936
+ホノルル|アメリカ（ハワイ）|11月2日|20:05-08:20 HNL AS864/TN2791/JL4602/HA864,21:00-09:00 HNL CX6300/MH9788/AS7598/AA8434/JL74/AY5081,21:00-09:20 HNL DL198/VN3012,21:00-09:25 HNL DL180,21:20-09:35 HNL TN2789/AS832/JL4600/HA832,21:55-09:55 HNL AA8384/NH186/UA7984/JL72/AS7592/MH9786/CX6324
+ミネアポリス|アメリカ|11月8日|17:20-13:25 MSP DL120/VN3026
+ロサンゼルス|アメリカ|10月22日|00:30-18:45 LAX NH106/UA7982,11:55-06:00 LAX AA170/AS6970/JL7016,16:35-10:49 LAX DL8/VN3028/LA6701,17:25-11:25 LAX LA7488/AS7316/AA8423/MH9172/JL16,18:10-12:25 LAX UA38/NH7542,19:45-13:50 LAX AS6926/JL7018/AA26,21:05-15:10 LAX UA7928/NH126
+ワシントンD.C.|アメリカ|8月24日|10:20-10:05 IAD SQ5922/NH102/UA7942/TG6084,15:45-15:50 IAD UA804/NH7028
+ロンドン|イギリス|11月8日|01:00-06:25 LHR BA4609/IB7191/JL41,09:35-15:35 LHR BA8/IB3619/JL7083,09:50-15:15 LHR BA4603/IB7193/JL43/LA7491,10:05-15:45 LHR NH211,13:15-19:10 LHR BA6/IB3763/JL7121
+ローマ|イタリア|9月26日|12:40-20:25 FCO AZ793/NH6690
+コペンハーゲン|デンマーク|11月8日|09:55-15:20 CPH SK984/GA9801
+フランクフルト|ドイツ|10月16日|09:40-17:25 FRA NH223/LH4919,11:45-19:00 FRA LH717/NH5853,21:40-05:20+1 FRA NH203/LH4921
+ミュンヘン|ドイツ|9月28日|09:25-16:45 MUC NH5851/LH715,22:55-06:50+1 MUC LH4923/NH217
+ヘルシンキ|フィンランド|9月3日|07:50-15:10 HEL AY5072/JL47/IB7197/BA4623,21:50-04:40+1 HEL JL6877/QF8238/BA6092/AY62
+パリ|フランス|10月23日|00:05-08:00 CDG SK9996,08:50-16:30 CDG AF187/KL2005/QF4214,09:35-17:10 CDG NH215,10:20-17:55 CDG JL45/BA4622,21:50-05:45+1 CDG KL2015/AF279
+シドニー|オーストラリア|11月1日|06:55-18:50 SYD QF26,08:35-20:15 SYD TK7657/VA7403/NH889,19:15-06:50+1 SYD LA7467/JL51,22:00-10:00+1 SYD AY4883/QF60/AF9681/LA5927,22:45-10:30+1 SYD NZ4159/NH879/VA7401/TK8336
+ドバイ|UAE|9月7日|00:05-05:45 DXB EK313/JL5093
+ドーハ|カタール|10月15日|01:35-06:45 DOH QR813/LA7429/JL4823,22:50-04:30+1 DOH JL59/QR4851
+イスタンブール|トルコ|9月21日|08:15-15:25 IST NH219/TK8364,21:45-04:55+1 IST NH6635/MS9363/TK199
+`, NRT:`
+デリー|インド|8月24日|21:45-03:00+1 DEL JL749/6E3819/UL3350
+ベンガルール|インド|10月26日|18:25-00:50+1 BLR UL3346/6E3820/JL753
+ジャカルタ|インドネシア|10月2日|11:15-17:05 CGK GA9153/HA5376/JL725/AS7345,17:50-23:45 CGK NH835/UA7915,18:05-23:55 CGK AA8499/JL729/HA5380/AS7347/GA9151
+デンパサール（バリ）|インドネシア|10月12日|11:00-17:25 DPS JL5013/GA881/AM7413
+シンガポール|シンガポール|11月8日|08:50-15:30 SIN SQ8643/SQ8689/TR895/TR885/TR809,10:00-16:30 SIN NH6253/SQ637/FJ5928/AI8219,16:40-23:10 SIN ZG53,17:00-23:40 SIN NH803/UA8014/SQ5925,18:00-00:45+1 SIN UA7935/SQ5901/NH801/NQ801/AC6246,18:10-00:50+1 SIN QF4024/UL3353/WS5932/AS7353/AA8482/OM5501/JL711,18:30-01:00+1 SIN SQ11/FJ5948/AC5882/AI8217/ET1343,18:50-01:20+1 SIN NH6255
+コロンボ|スリランカ|11月8日|11:20-17:30 CMB UL455/JL7077
+バンコク|タイ|10月21日|08:55-13:45 BKK VZ831,10:50-15:20 BKK LY8430/NH5953/TG641,12:00-16:30 BKK LY8282/NH5955/TK8372/TG643,17:00-21:40 BKK ZG51,17:25-21:55 BKK TG677/LY8432/NH5951,17:30-22:15 BKK AC7412/NH807/TG6007/UA7940,18:25-23:00 BKK JL707/AS7339/PG4160/HA5367/UL3341/WS5930/AA8411,19:10-23:55 BKK UA7971/TG6005/AC6251/ET1405/NH805
+クラーク|フィリピン|11月8日|11:15-15:15 CRK 5J5069
+セブ|フィリピン|10月14日|08:55-13:15 CEB 5J5063,14:40-18:45 CEB NH5323/PR433/AA8341,17:55-22:05 CEB UA32
+マニラ|フィリピン|11月8日|09:15-13:05 MNL PR431/AA8339/NH5335,11:10-14:50 MNL Z2191,12:50-17:30 MNL 5J5055,13:40-17:30 MNL PR427/NH5337/AA8338,17:30-21:15 MNL NH819,17:55-22:05 MNL PR3101,18:00-22:05 MNL WS5922/JL745,19:00-23:35 MNL 5J5057,20:30-00:20+1 MNL Z2193
+バンダルスリブガワン|ブルネイ|11月8日|11:45-17:15 BWN BI696/JL5001
+ダナン|ベトナム|10月1日|09:00-12:40 DAD VN319/NH9725,10:25-14:05 DAD VN317
+ハノイ|ベトナム|9月18日|09:30-13:05 HAN VJ933/W24933/A12933,09:30-13:00 HAN VN311,09:30-13:10 HAN NH9715,16:30-20:05 HAN A12935/W24935/VJ935,18:20-21:50 HAN AA8440/AS7325/WS5936/OM5509/JL751,18:30-22:15 HAN VN3493/UA7917/NH897/AC6280
+ホーチミン|ベトナム|10月2日|08:55-12:55 SGN A12823/VJ823/W24823/JL5773,09:30-13:25 SGN VN307,09:30-13:30 SGN NH9701,17:45-22:00 SGN WS5918/AS7329/JL759/OM5505/AA8422,19:50-00:15+1 SGN NH833/UA7913/VN3309/AC6283
+マカオ|マカオ|11月7日|15:30-20:05 MFM NX861
+クアラルンプール|マレーシア|11月4日|09:45-16:55 KUL QR5045/MH89/AA9069/JL7091,10:05-17:00 KUL FY7049,10:25-16:55 KUL OD873,11:30-18:20 KUL WS5934/JL723/AS7343/AA8415/UL3355/MH9117,16:50-23:40 KUL ZG61,17:25-00:15+1 KUL NH815/UA7962/AC6256,21:45-05:00+1 KUL QR5399/JL7093/MH71/AA9063
+ウランバートル|モンゴル|9月7日|14:40-19:15 UBN OM502/JL9241
+ソウル|韓国|11月7日|08:30-11:00 ICN KE5498/OZ107/EY8473/UA7321/NH6977,08:30-11:50 ICN MM641,08:55-11:35 ICN ZG45,08:55-11:50 ICN TW248/TW250,09:15-12:00 ICN JL5201/TN1578/KE706/VS5504/OZ9852/AM6751/DL7782,10:40-13:30 ICN 7C1182,10:55-13:35 ICN ZG43,11:10-13:50 ICN KE5740/LJ212,11:10-14:00 ICN BX163/BX224,11:20-14:15 ICN ZE606,11:25-14:05 ICN RS248,11:35-14:30 ICN 7C1102,11:50-14:45 ICN ZE602,11:50-14:50 ICN 7C1126,11:55-14:55 ICN TW242,12:05-15:10 ICN 7C1188,12:30-15:20 ICN YP732,12:50-15:35 ICN RS260,13:00-15:40 ICN LJ236,13:15-16:15 ICN 7C1184/7C1166,13:20-15:55 ICN OZ101/EY8459/NZ4061/UA7317/KE5704/NH6971,13:25-16:15 ICN WE502,14:00-16:40 ICN KE704/DL7780/AM6754/JL5205/OZ9844,14:00-17:05 ICN 7C1104,14:00-17:10 ICN TW244,15:05-18:00 ICN WE504,15:10-18:15 ICN 7C1106/7C1130,17:10-19:55 ICN OZ9846/JL5251/KE712/DL7896/AM6706,17:40-20:25 ICN YP736,18:15-21:15 ICN 7C1108,18:45-21:35 ICN ZE604,18:50-21:35 ICN KE708/JL5203/DL7888/OZ9848,18:55-21:40 ICN KE5742/LJ264,18:55-21:50 ICN TW246,19:05-22:05 ICN BX165/BX266,19:35-22:25 ICN UA7299/OZ105/NH6975/KE5496/NZ4055/EY8452,19:50-22:50 ICN 7C1122/7C1110,19:55-22:35 ICN ET673,20:00-22:30 ICN RS268,20:00-22:40 ICN ZE608,20:25-23:05 ICN LJ272,20:40-23:35 ICN JL5253/OZ9850/AF5377/KE714/AM6707/VS5542/DL7902/NH5341
+釜山|韓国|11月8日|10:15-13:00 PUS 7C1152,11:05-13:30 PUS OZ9711/BX111,11:25-13:55 PUS BX718,11:45-14:05 PUS KE5084/LJ720,12:45-15:05 PUS KE2130/JL5231,14:05-16:45 PUS 7C1154/7C1164/7C1156,16:35-18:50 PUS LJ722,19:40-22:00 PUS KE2132/JL5161
+大邱|韓国|10月19日|13:45-16:00 TAE TW252,18:10-20:35 TAE TW258
+香港|香港|10月5日|08:00-12:25 HKG UO857/CX5857,09:25-13:15 HKG QR5857/CX509/FJ5475/AA8939/JL7041,09:30-13:30 HKG TK9205/HX607,14:50-18:45 HKG HX605/TK9203,14:50-18:50 HKG JL7025/QR5803/AA8896/CX527,15:45-19:40 HKG UO849,15:50-19:55 HKG HB321,15:55-20:00 HKG HX609/TK9207,17:05-21:00 HKG CX5871/UO871,17:15-21:10 HKG QR5859/JL7047/CX521/AA8883,17:45-21:45 HKG HB323,18:20-22:05 HKG AS7331/JL735/TN1900/WS5910/AA8417/CX6323/MH9119/HA5381,18:30-22:20 HKG CX505/QR3457/JL7049/AA8881,18:45-22:35 HKG UA7989/AC6286/NH811/NZ4147,19:25-23:20 HKG CX5647/UO647,20:10-23:55 HKG GK27,20:40-00:35+1 HKG CX5651/UO651,21:05-00:55+1 HKG HX631/TK8869,21:35-01:30+1 HKG UO653,21:40-01:40+1 HKG CX501/FJ5473/AA8927/QR3458/JL7043
+高雄|台湾|11月2日|09:25-13:00 KHH GK17,11:25-15:05 KHH IT281,12:25-15:45 KHH BR107/NH5831/AC6544,13:20-16:50 KHH CI103/JL5139,13:30-17:00 KHH FD235,17:50-21:25 KHH NH6464/UA837,18:25-22:05 KHH JL5177/CI127
+台北|台湾|10月31日|08:30-11:50 TPE GK13,09:20-12:30 TPE CI107/JL5045,11:55-15:10 TPE TR899/SQ8525,12:00-15:25 TPE IT201,12:10-15:15 TPE SQ8647/TR867,12:55-16:15 TPE MM621,13:00-16:05 TPE NZ4945/BR183/TK9448/TG6365/NH5849,13:45-16:50 TPE JX801,14:00-17:05 TPE TK9447/NH5807/NZ4937/BR197/TG6347,14:35-17:45 TPE QF8739/CI101/JL5047,15:30-18:40 TPE JL7045/CX451,15:40-18:45 TPE JX803,16:40-20:00 TPE MM623,17:15-20:10 TPE SL395,17:45-20:55 TPE JL5175/CI105,18:05-21:15 TPE JL809/MH9797,18:30-21:50 TPE IT203,19:30-22:45 TPE CI109/JL5049/QF8737,19:45-22:55 TPE TR875/SQ8523,20:10-23:20 TPE JX805,20:20-23:25 TPE NH5805/AC6542/TG6353/NZ4935/BR195,22:05-01:25+1 TPE MM627,22:25-01:30+1 TPE GK11
+上海|中国|11月8日|08:55-11:25 PVG CA158,09:20-11:40 PVG NH919,09:35-12:20 PVG FM1006/MU4186/JL873,09:50-12:20 PVG HO3130/CA6662,10:55-13:45 PVG FM3044/MU272/JL5603,13:00-16:00 PVG FM3046/JL9577,13:00-15:50 PVG MU728,13:15-15:40 PVG NH9784/HO1380,13:25-15:55 PVG CA924,13:45-16:25 PVG IJ3,13:50-16:30 PVG FM3042/MU524/JL5601,13:50-16:40 PVG MU4187/JL877/FM1008,14:15-17:00 PVG CZ8310,15:00-17:35 PVG NH5713/CA930/SC116,16:55-19:45 PVG FM3040/MU522/JL9569,19:20-22:00 PVG IJ5,19:30-22:15 PVG CA920,19:40-22:35 PVG 9C6218,22:20-01:10+1 PVG GK35
+北京|中国|10月13日|13:55-17:05 PEK HU440,15:15-18:05 PEK CA926/NH5703,17:55-21:15 PEK IJ17,20:15-23:10 PEK CA114
+広州|中国|9月14日|14:35-18:30 CAN CZ8102,14:45-19:00 CAN 3U7022
+深圳|中国|9月16日|19:00-23:15 SZX CA3780/ZH652/NH6609
+杭州|中国|10月1日|10:05-12:50 HGH NH929/CA6670
+大連|中国|9月4日|10:00-12:15 DLC CA6688/NH903,13:25-15:30 DLC CZ630/JL5065,14:10-16:20 DLC CA952/NH5705
+ハルビン|中国|11月8日|12:50-15:05 HRB CZ6086
+天津|中国|11月8日|11:00-14:15 TSN IJ253
+福州|中国|10月28日|15:30-18:45 FOC MF810/JL5097,18:30-20:55 FOC K6593
+瀋陽|中国|8月24日|13:50-16:05 SHE CZ628/JL5021
+トロント|カナダ|11月8日|18:45-16:45 YYZ AC10/NH6812
+バンクーバー|カナダ|11月8日|18:15-11:10 YVR NH6814/AC4/TG5837,19:05-11:45 YVR MH9112/AA8436/WS5901/JL18
+モントリオール|カナダ|9月19日|17:40-16:50 YUL AC6/NH6826
+グアム|アメリカ（グアム）|11月5日|09:55-14:40 GUM HA5437,10:00-14:35 GUM MH9127/AS7989/JL941,11:00-15:45 GUM UA827/NH6456,17:00-21:45 GUM NH6458/UA197
+サンディエゴ|アメリカ|9月13日|17:15-11:35 SAN AA8480/AS7312/JL66/MH9116
+サンフランシスコ|アメリカ|10月3日|17:00-10:30 SFO TG6094/UA7950/NH8,17:05-10:35 SFO UA838/NH7012,18:15-11:30 SFO MH4404/JL58/AA8409/AS7314,21:30-14:45 SFO ZG26
+シアトル|アメリカ|9月4日|17:45-10:35 SEA JL68/AA8446/AS7322/MH9164,18:00-10:40 SEA AS824/HA824
+シカゴ|アメリカ|11月8日|17:00-13:35 ORD JL56/AA8460/MH4826,17:05-13:50 ORD TG6176/NH12/UA7926,18:00-14:50 ORD UA868/NH6488
+ダラス|アメリカ|9月24日|18:30-16:35 DFW JL7012/AA60
+デンバー|アメリカ|9月29日|16:30-12:05 DEN NH7032/UA142
+ニューヨーク（ニューアーク）|アメリカ|9月19日|17:25-17:05 EWR NH6452/UA78
+ヒューストン|アメリカ|9月19日|11:30-09:45 IAH ZG16,17:00-14:55 IAH UA6/NH6450
+ボストン|アメリカ|9月4日|18:25-18:10 BOS MH9108/AA8476/JL8
+ホノルル|アメリカ（ハワイ）|8月10日|19:10-07:50 HNL ZG2,20:10-08:45 HNL UA8010/NH184,20:30-09:20 HNL CX6302/AS7590/AA8466/MH9122/JL786,21:10-09:45 HNL NH182
+ロサンゼルス|アメリカ|10月22日|14:35-08:25 LAX ZG24,16:45-10:45 LAX NH7018/UA33,17:00-11:00 LAX TG6092/NH6/UA7946,17:20-11:05 LAX AA8408/JL62/MH9114/AS7310/LA7456,18:40-12:50 LAX SQ12
+ウィーン|オーストリア|10月17日|11:10-18:20 VIE NH6325/OS26
+アムステルダム|オランダ|9月26日|08:55-15:50 AMS KL866/SK6866,12:15-19:10 AMS AF5134/KL862/SK6896
+チューリッヒ|スイス|10月17日|10:55-18:20 ZRH NH6751/LX161
+フランクフルト|ドイツ|9月25日|10:35-17:45 FRA IB7195/BA4601/AY5827/JL407
+ヘルシンキ|フィンランド|9月10日|23:05-05:55+1 HEL JL6801/BA6084/QF8240/AY74
+ブリュッセル|ベルギー|11月8日|10:10-16:30 BRU NH231
+ワルシャワ|ポーランド|9月21日|08:15-15:30 WAW LO82,22:50-06:00+1 WAW LO80
+ケアンズ|オーストラリア|11月8日|20:10-04:35+1 CNS QF5580/AY6431/JL5089/JQ26
+ブリスベン|オーストラリア|10月9日|20:50-06:45+1 BNE AY6429/JQ10,21:20-07:20+1 BNE QF62/AY4877/FJ5337
+メルボルン|オーストラリア|10月9日|18:40-06:45+1 MEL OM5513/AY5059/JL773/LA7468,20:25-08:40+1 MEL QF80/LA4820/AY4879/FJ5339
+オークランド|ニュージーランド|9月27日|15:35-06:00+1 AKL NH7960/NZ94,20:00-10:25+1 AKL NH7950/NZ90/OZ6564
+サイパン|北マリアナ|11月8日|17:40-22:25 SPN UA825
+アブダビ|UAE|9月18日|17:40-00:15+1 AUH NH6361/EY801
+ドバイ|UAE|10月1日|21:30-03:05+1 DXB EK321,22:30-04:50+1 DXB JL5095/EK319
+テルアビブ|イスラエル|11月8日|18:35-00:40+1 TLV QF5013/LY92
+ドーハ|カタール|10月15日|17:25-23:05 DOH QR809/JL8287/LA5277,22:25-04:05+1 DOH QR807/JL7995/LA6035
+イスタンブール|トルコ|9月28日|10:25-17:40 IST MS9359/NH6637/TK51
+メキシコシティ|メキシコ|10月27日|09:35-07:00 MEX KE7945/AM57/LA7749/GA9498,16:50-14:05 MEX NH180
+カイロ|エジプト|11月8日|20:30-03:30+1 CAI MS965
+`, KIX:`
+ソウル|韓国|11月8日|00:15-02:15 ICN EY8476/OZ117/KE5502,00:40-02:40 ICN TW318,02:15-04:05 ICN KE738/DL7875/OZ9862,07:40-09:45 ICN MM701,08:30-10:30 GMP MM735,08:50-10:55 ICN NH6955/KE5500/EY8468/OZ115,08:50-11:00 ICN 7C1396,09:00-11:05 ICN AF5381/JL5211/VS5506/OZ9860/KE722/DL7784,09:50-11:55 ICN 7C1302,10:00-11:55 ICN RS302,10:20-12:20 GMP MM737,10:30-12:35 ICN EY8445/AC6975/NH6951/KE5722/OZ111,10:40-12:40 GMP 7C1326,10:50-12:55 ICN 7C1392,10:50-13:05 ICN LJ314,10:50-12:50 ICN ET1297,11:05-13:05 GMP OZ1135/NH6957,11:15-13:25 ICN TW302,11:45-13:45 ICN WE512,11:45-13:50 ICN MM705,11:50-13:50 ICN ZE612,11:55-14:05 ICN KE724/DL7786/JL5213/OZ9856,11:55-14:00 ICN OM6704,11:55-14:00 GMP JL5247/KE2118,12:00-14:10 ICN OZ9567/7C1304/BX328,12:00-14:05 ICN BX171,14:00-16:15 ICN DL7790/JL5271/KE728,14:10-16:10 GMP MM739,14:50-16:50 ICN LJ330,15:40-18:05 ICN BX332,15:40-18:10 ICN OZ9569/BX173,15:40-17:55 ICN TW304,16:00-17:55 ICN RS354,16:00-18:00 GMP MM743,16:25-18:25 GMP 7C1328,17:00-19:05 ICN 7C1394,17:00-18:50 ICN EY8451/OZ113/NH6953,17:35-19:35 ICN WE514,17:35-19:45 ICN KE5072/LJ368,18:00-20:15 ICN BX374/OZ9571,18:00-19:50 ICN ZE614,18:00-20:05 ICN RS382,18:10-20:15 ICN MM709,18:10-20:25 ICN JL5215/DL7788/OZ9858/KE726/OM6706,18:10-20:45 ICN BX175,19:10-21:05 ICN TW306,19:40-21:50 ICN 7C1306,19:45-22:00 ICN KE5724/EY8451/ET1297/NH6953,19:50-21:50 ICN MM711,19:55-21:55 GMP JL5151/KE2120,20:20-22:25 GMP OZ1155/NH6979,21:40-23:30 ICN RS380,23:10-01:20+1 ICN TW308,23:25-01:40+1 ICN LJ384
+釜山|韓国|11月1日|10:40-12:10 PUS 7C1352,10:50-12:20 PUS ZE914,11:00-13:00 PUS BX608,11:00-12:30 PUS KE5086/LJ612,11:00-12:35 PUS OZ9723/BX123,14:00-15:30 PUS BX125,14:00-15:40 PUS OZ9725/BX610,16:25-18:05 PUS LJ616/KE5088,16:35-18:10 PUS TW322,17:00-18:30 PUS ZE916,18:40-20:15 PUS TW320,18:50-20:40 PUS OZ9278/OZ9721/BX618,18:50-20:30 PUS BX121,19:00-20:30 PUS 7C1354
+大邱|韓国|10月13日|10:40-12:10 TAE TW312,18:00-19:40 TAE TW314,20:20-21:55 TAE TW510
+済州|韓国|10月29日|12:00-14:00 CJU TW332
+台北|台湾|11月8日|07:15-09:45 TPE MM23,10:10-12:40 TPE MM25,10:55-13:10 TPE NZ4931/BR177/TG6355/NH5833,11:30-13:50 TPE IT211,12:00-14:15 TPE VZ567,12:20-14:35 TPE JX821/EY5170,12:45-15:00 TPE JL5103/CI157,12:55-15:05 TPE NZ4917/TK9459/TG6357/BR131/NH5811,13:20-15:20 TPE SL397,14:00-16:15 TPE JX823,14:00-16:20 TPE EY5171,14:30-16:50 TPE CI153/JL5105,14:50-17:10 TPE GK55,15:25-17:55 TPE MM27,16:15-18:30 TPE CX565/JL7055,18:10-20:25 TPE TG6343/NH5827/BR129/NZ4915,18:55-21:20 TPE IT213,19:00-21:25 TPE CI173/JL5107,20:45-23:05 TPE D7379,20:55-23:15 TPE AK177,23:10-01:30+1 TPE GK57
+高雄|台湾|10月20日|10:45-13:10 KHH MM31,11:15-13:40 KHH IT285,12:10-14:30 KHH NH5839/BR181,13:45-16:00 KHH AK171,20:35-22:50 KHH CI177/JL5143,20:35-22:55 KHH NH6612/BR147
+香港|香港|10月27日|08:05-11:45 HKG MM63,09:25-13:00 HKG QR5823/JL7053/CX567,09:30-13:20 HKG EY6814/HX617,09:50-13:35 HKG JL7051/CX503/QR5835,13:30-17:15 HKG HB353,13:50-17:30 HKG UO687,14:15-18:10 HKG EY6813/TK8867/HX615,15:15-19:00 HKG UO851,16:55-20:25 HKG CX561/QR5815/JL7027,17:00-20:55 HKG EY6815/HX619,17:10-21:00 HKG UO899,17:40-21:25 HKG EY6828/HX637/TK8832,18:05-21:35 HKG CX507/QR5801/JL7059,19:05-22:40 HKG CX569/JL7939,20:00-23:40 HKG HX613/EY6812,20:15-23:55 HKG UO689,21:05-00:55+1 HKG UO863,21:10-00:45+1 HKG MM67
+マカオ|マカオ|9月8日|13:55-16:55 MFM NX855/NH5904
+上海|中国|10月22日|08:30-09:55 PVG 9C6588,09:00-10:35 PVG CA6664/NH973,09:30-11:00 PVG JL5609/MU730/FM3052,10:15-11:45 PVG FM1012/JL891/MU4192,10:55-12:25 PVG JL5612/MU234,12:00-13:35 PVG FM874/JL5790/MU8620,12:15-13:40 PVG HO1506,12:20-13:50 PVG 9C6576,12:55-14:20 PVG MU3960/NH9756,13:10-14:35 PVG JL5661/MU226,13:30-15:15 PVG HO1572,13:30-15:10 PVG CA922/NH5727,13:45-15:20 PVG 9C6572,14:20-16:00 PVG MU516/FM3048/JL5611,15:00-16:50 PVG 9C6566,15:00-16:40 PVG 9C6578,15:30-17:10 PVG 9C6590,15:55-17:20 PVG NH975/CA6666,16:30-18:30 PVG MU748/JL9567,16:45-18:30 PVG CA858/NH5745,16:55-18:35 PVG CZ8106,18:15-19:50 PVG HO1574,19:00-21:15 PVG MU8650/FM822/JL8273,19:30-21:10 PVG 9C6582,21:30-23:10 PVG 9C6586,22:10-23:30 PVG HO1338,22:20-00:05+1 PVG MM79,22:25-23:40 PVG MU3964/NH9754
+北京|中国|11月8日|09:00-11:25 PEK CA162,09:30-12:05 PEK NH979,09:55-12:40 PEK ZH3216/CA6656,13:50-16:15 PEK NH5723/CA928,14:35-17:15 PEK HU474,15:25-18:00 PKX CZ8030,17:10-19:30 PEK CA128
+広州|中国|9月3日|11:20-14:30 CAN 9C6160,14:40-18:25 CAN CZ390,16:00-19:10 CAN CZ394/3U7018/JL5071
+深圳|中国|9月20日|15:05-18:20 SZX CA7942/ZH662/NH6607,17:10-20:25 SZX ZH664/CA3840/NH5658
+杭州|中国|10月19日|12:15-13:45 HGH NH5755/CA726,12:35-14:25 HGH SC120,18:00-20:05 HGH GJ8078,19:20-20:55 HGH MF8708
+青島|中国|10月19日|12:30-14:10 TAO SC4092/CA8886/NH6577,17:20-19:00 TAO SC4094/CA8896/NH6572,22:00-23:40 TAO NH6583/CA8898/SC4096
+大連|中国|11月1日|11:55-13:40 DLC CZ642,16:30-18:15 DLC 9C6988
+天津|中国|10月19日|15:55-17:55 TSN 9C8800
+南京|中国|8月23日|08:45-10:30 NKG 9C6736,14:00-15:45 NKG ZH686/CA3848/NH5651,16:00-17:50 NKG HO1620
+福州|中国|10月22日|13:20-15:35 FOC MF836
+瀋陽|中国|11月5日|13:10-15:40 SHE CZ612
+マニラ|フィリピン|11月8日|09:55-12:55 MNL NH5329/PR407,14:15-17:20 MNL Z2189,15:00-18:45 MNL NH5313/PR411,19:35-23:10 MNL 5J827,21:20-00:45+1 MNL PR439,21:55-01:40+1 MNL GK81
+バンコク|タイ|11月1日|00:45-05:00 BKK UL3345/PG4170/JL727/6E3810/AS7341,00:55-04:40 BKK HA5378,08:55-13:30 BKK VZ821,11:00-15:45 BKK TK8386,11:00-15:30 BKK TG623/LY8450/NH5597,17:25-22:00 BKK LY8436/TG673/NH5959,19:15-23:55 BKK MM91
+チェンマイ|タイ|11月8日|09:35-14:15 CNX VZ823
+シンガポール|シンガポール|11月3日|10:05-16:00 SIN SQ619/AI8175/NH6263,11:30-17:30 SIN SQ8645/TR819/TR881,16:50-22:40 SIN FJ5966/AI8177/SQ621/NH6265,18:40-00:55+1 SIN MM773,23:20-05:00+1 SIN AI8179/SQ623/FJ5952/NH6261
+クアラルンプール|マレーシア|10月30日|09:00-15:10 KUL OD861,09:25-15:55 KUL MH53/JL7095/QR5005,09:55-15:55 KUL FY7043,10:55-17:20 KUL D7533
+ハノイ|ベトナム|10月21日|09:20-12:20 HAN VJ939/W24939/A12939/JL5019,10:00-13:00 HAN VN335/NH9717,15:30-18:30 HAN W24931/VJ931/A12931
+ホーチミン|ベトナム|10月21日|09:30-13:00 SGN VJ829/W24829/A12829,10:00-13:20 SGN VN321,10:00-13:25 SGN NH9705
+ドーハ|カタール|11月8日|17:55-00:05+1 DOH LA5306/JL7997/QR803
+ドバイ|UAE|8月19日|23:45-04:40+1 DXB EK317/JL5099
+アブダビ|UAE|11月8日|17:50-00:35+1 AUH ET4330/MS8152/NH6377/EY815
+イスタンブール|トルコ|9月13日|22:10-05:00+1 IST NH6645/TK87
+ヘルシンキ|フィンランド|9月17日|22:15-05:20+1 HEL BA6098/AY68/JL6909
+パリ|フランス|8月22日|11:25-19:15 CDG AF291/SK9995/KL2327
+アムステルダム|オランダ|11月8日|13:00-19:20 AMS KL868/AF8438/SK6853
+ミュンヘン|ドイツ|11月8日|09:55-16:25 MUC LH743/NH7880
+ホノルル|アメリカ（ハワイ）|11月8日|20:45-08:55 HNL HA850,20:45-09:20 HNL JL4605/AS850,22:05-10:25 HNL CX6310/JL790/AS7594
+グアム|アメリカ（グアム）|8月31日|10:40-15:30 GUM TW509,11:05-15:50 GUM UA150/NH6468
+サンフランシスコ|アメリカ|9月21日|16:55-11:00 SFO UA34/NH7070
+ロサンゼルス|アメリカ|11月5日|17:50-10:55 LAX LA7461/AS7318/AA8439/JL60/MH9142
+ケアンズ|オーストラリア|11月1日|21:25-05:40+1 CNS JL5083/AY6433/JQ16/QF5586
+ブリスベン|オーストラリア|8月12日|21:45-07:25+1 BNE JQ24/AY6435/QF5584
+`};
+const AIRLINE2 = {KE:"大韓航空",OZ:"アシアナ","7C":"チェジュ航空",LJ:"ジンエアー",TW:"ティーウェイ",BX:"エアプサン",RS:"エアソウル",ZE:"イースター",WE:"パラタ航空",MM:"ピーチ",JL:"JAL",NH:"ANA",GK:"ジェットスター",BR:"エバー航空",CI:"チャイナエアライン",IT:"タイガーエア台湾",JX:"スターラックス",VZ:"タイ・ベトジェット",SL:"タイ・ライオン",D7:"エアアジアX",AK:"エアアジア",CX:"キャセイ",HX:"香港航空",UO:"HK Express",HB:"グレーターベイ航空",NX:"マカオ航空",MU:"中国東方",FM:"上海航空",HO:"吉祥航空","9C":"春秋航空",CA:"中国国際航空",CZ:"中国南方",ZH:"深圳航空",SC:"山東航空",HU:"海南航空",GJ:"長龍航空",MF:"厦門航空",PR:"フィリピン航空","5J":"セブパシフィック",Z2:"エアアジア・フィリピン",TG:"タイ国際",SQ:"シンガポール航空",TR:"スクート",MH:"マレーシア航空",OD:"バティック・エア",FY:"ファイアフライ",VN:"ベトナム航空",VJ:"ベトジェット",QR:"カタール航空",EK:"エミレーツ",EY:"エティハド",TK:"ターキッシュ",AY:"フィンエアー",AF:"エールフランス",KL:"KLM",LH:"ルフトハンザ",HA:"ハワイアン",AS:"アラスカ航空",UA:"ユナイテッド",AA:"アメリカン",DL:"デルタ",JQ:"ジェットスター",QF:"カンタス",PG:"バンコク・エアウェイズ",UL:"スリランカ航空",LA:"LATAM",SK:"SAS"};
+const AL2_COLOR = {KE:"#1d6fb8",OZ:"#5b5b5b",MM:"#d63a8c",JL:"#d7263d",NH:"#1a4fa0",BR:"#1e7d4c",CI:"#c43e7a",CX:"#00645a",TG:"#5b2a86",SQ:"#f2a900",UA:"#1a3d7c",EK:"#c8102e",QR:"#5c0632",TW:"#c4002b","7C":"#f15a22",LJ:"#5e8f00",BX:"#2a6fb5",GK:"#f28c28",JQ:"#f28c28",UO:"#7a3f9d",HX:"#c8102e",MU:"#1f3b85",CA:"#c8102e",CZ:"#0b5aa3",IT:"#f6a800",JX:"#8a6d3b",VJ:"#e3262e",VN:"#1a6aa8"};
+Object.assign(AIRLINE2, {AZ:"ITAエアウェイズ",SK:"SAS",DL:"デルタ航空",SV:"サウディア",VA:"ヴァージン・オーストラリア",BK:"奥凱航空",KC:"エア・アスタナ",ZG:"ZIPAIR",LY:"エル・アル",WS:"ウエストジェット",OM:"MIATモンゴル航空",BI:"ロイヤルブルネイ",FD:"タイ・エアアジア",YP:"エアプレミア",TN:"エア・タヒチ・ヌイ",AM:"アエロメヒコ",IJ:"スプリング・ジャパン",K6:"カンボジア・アンコール航空",MS:"エジプト航空",LO:"LOTポーランド航空",OS:"オーストリア航空",LX:"スイス インターナショナル",ET:"エチオピア航空",AI:"エア・インディア",NQ:"エアージャパン",AC:"エア・カナダ",NZ:"ニュージーランド航空","3U":"四川航空",GA:"ガルーダ・インドネシア",BA:"ブリティッシュ・エアウェイズ",IB:"イベリア航空",AY:"フィンエアー",MH:"マレーシア航空",HA:"ハワイアン航空",AS:"アラスカ航空",TK:"ターキッシュ エアラインズ",EY:"エティハド航空",VS:"ヴァージン・アトランティック",KE:"大韓航空",LA:"LATAM",UL:"スリランカ航空",JQ:"ジェットスター",QF:"カンタス航空",SQ:"シンガポール航空",TR:"スクート",VJ:"ベトジェット",VN:"ベトナム航空",PR:"フィリピン航空","5J":"セブパシフィック",Z2:"エアアジア・フィリピン",FY:"ファイアフライ",OD:"バティック・エア",HB:"グレーターベイ航空",UO:"HK Express",HX:"香港航空",NX:"マカオ航空",SL:"タイ・ライオン",VZ:"タイ・ベトジェット",JX:"スターラックス",IT:"タイガーエア台湾",GK:"ジェットスター・ジャパン",MM:"ピーチ",RS:"エアソウル",ZE:"イースター航空",WE:"パラタ航空",YP:"エアプレミア"});
+Object.assign(AL2_COLOR, {ZG:"#2c2c2c",EK:"#c8102e",AC:"#d22630",LH:"#0a1d3d",AF:"#002157",KL:"#00a1de",QF:"#e40000",NZ:"#111",TK:"#c8102e",AY:"#0b1560",MS:"#1b3f8b",LO:"#0f3e8a",SQ:"#f2a900",PR:"#0038a8","5J":"#f6c300"});
+const flNum = fn => +fn.replace(/^[A-Z0-9]{2}/,"");
+const ITT_RET_RAW = {KIX:`
+ソウル|11月8日|07:00-08:50 ICN 7C1301,07:15-09:05 ICN RS301,07:20-09:15 ICN OZ112/NH6952/KE5721/EY8448,07:30-09:15 ICN MM712,07:55-09:55 ICN TW301,07:55-09:45 GMP NH6958/OZ1145,08:00-09:45 GMP 7C1325,08:00-09:50 ICN LJ313,08:05-09:50 ICN 7C1391/KE5071,08:50-10:45 ICN OZ9855/JL5210/KE723/DL7785/OM6703,08:55-10:45 GMP KE2117/JL5246,08:55-10:45 ICN WE511,09:05-10:55 ICN ZE611,09:05-11:00 ICN BX327/OZ9568,09:10-11:00 ICN 7C1303/BX172,09:35-11:20 ICN AF5369,09:55-11:55 ICN ZE615,10:15-12:05 ICN 7C1315,10:35-12:20 ICN MM714,11:05-12:50 ICN JL5270/KE727/DL7789,11:20-13:05 GMP MM736,12:00-13:50 ICN LJ329,12:10-14:10 ICN TW303,12:40-14:40 ICN OZ9570/BX331/BX174,13:10-14:55 GMP MM738,13:10-15:00 ICN RS353,13:40-15:25 GMP 7C1327,14:05-15:50 ICN NH6954/OZ114/EY8449,14:10-16:00 ICN 7C1393,14:45-16:35 ICN WE513,14:50-17:00 ICN BX373,14:50-16:35 ICN LJ367,15:05-16:50 ICN MM706,15:05-17:00 ICN OZ9572/ZE613,15:05-17:10 ICN BX176,15:10-17:00 ICN AF5374/JL5212/OM6705/OZ9857/VS5548/KE725,15:20-17:00 ICN RS381,15:50-17:50 ICN TW305,16:40-18:30 ICN KE5723,16:50-18:40 GMP JL5150/KE2119,16:55-18:40 ICN 7C1305,17:00-18:45 GMP MM740,17:20-19:00 GMP OZ1165/NH6980,18:45-20:45 ICN JL5214/VS5505/DL7783/KE721/AF5389,18:45-20:35 ICN KE5499/EY8450/ET1290/OZ116/NH6956/AC6974/OZ9859,18:50-20:35 GMP MM744,18:50-20:40 ICN RS379,19:10-21:00 ICN 7C1395,20:20-22:10 ICN TW307,20:40-22:25 ICN LJ383,20:50-22:35 ICN OZ118/KE5501,20:50-22:40 ICN DL7874/KE737/OZ9861,21:00-22:45 ICN MM710/EY8475,21:45-23:40 ICN TW317
+釜山|10月6日|08:05-09:35 PUS 7C1351,08:25-09:55 PUS LJ255,08:30-10:05 PUS BX124/OZ9724,09:00-10:30 PUS ZE913,09:20-10:55 PUS TW319,11:25-12:55 PUS BX126/OZ9726,13:00-14:30 PUS TW321,13:30-15:00 PUS ZE915,13:35-15:05 PUS LJ251/KE5085,15:05-16:35 PUS LJ253/KE5087,16:30-17:55 PUS OZ9722/BX122,16:30-18:00 PUS 7C1353
+大邱|10月28日|08:00-09:30 TAE TW311,16:55-18:15 TAE TW313
+済州|10月29日|16:00-17:40 CJU TW331
+台北|11月7日|02:30-06:00 TPE GK50,05:55-09:20 TPE VZ566,06:30-09:55 TPE NH5834/NZ4928/TG6354/BR178,07:00-10:25 TPE IT210,07:40-11:10 TPE JX820/EY5172,08:05-11:35 TPE CI156/JL5102,08:20-11:55 TPE TG6356/BR132/NZ4914/NH5812,08:55-12:30 TPE SL396,09:20-12:50 TPE JX822/EY5173,09:40-13:10 TPE MM24,09:45-13:20 TPE JL5104/CI152,11:15-14:45 TPE CX564/JL7054,13:30-16:55 TPE NZ4912/TG6342/BR130/NH5828,13:35-17:15 TPE TK9538,13:40-17:10 TPE MM26,14:20-17:50 TPE CI172/JL5106,14:40-17:55 TPE IT212,15:40-19:30 TPE AK176,15:40-19:20 TPE D7378,18:10-21:40 TPE GK54,18:50-22:20 TPE MM28
+高雄|11月6日|06:55-10:40 KHH IT284,07:00-10:45 KHH JL5142/CI166,07:05-10:55 KHH NH5840/BR182,08:30-12:40 KHH AK170,14:20-18:05 KHH MM32,15:25-19:10 KHH CI176/JL5144,15:25-19:15 KHH BR148
+香港|11月8日|01:45-06:10 HKG MM68,01:50-06:20 HKG CX566/QR5838/JL7050,02:40-07:15 HKG HX616/TK9211/EY6810,08:05-12:35 HKG HB352,08:20-12:45 HKG QR5826/JL7028/CX596,08:30-13:05 HKG UO686,08:40-13:15 HKG TK8866/EY6809/HX614,09:45-14:20 HKG UO850,10:45-15:15 HKG QR5822/JL7052,10:45-15:10 HKG CX506,11:25-16:00 HKG HX618/EY6811/TK8876,11:50-16:15 HKG UO898,13:20-17:40 HKG JL7938/CX598,14:30-19:00 HKG EY6808/HX612,14:40-19:05 HKG TK9200,14:45-19:20 HKG UO688/CX5688,15:45-20:20 HKG UO862,16:40-21:05 HKG JL7056/CX502/QR5808
+マカオ|11月8日|08:15-12:45 MFM NX856/NH5903
+上海|10月24日|06:15-09:35 PVG MM80,07:40-11:00 PVG MU8619/JL5799/FM873,07:45-11:00 PVG HO1505,08:05-11:20 PVG 9C6575,08:20-11:40 PVG NH9755/MU3959,08:45-12:00 PVG CA921/NH5726,08:55-12:10 PVG JL5660/MU225,09:10-12:30 PVG HO1571,09:30-12:45 PVG 9C6571,09:50-13:20 PVG MU515/FM3047/JL5610,10:30-14:00 PVG 9C6565,10:40-14:00 PVG 9C6577,11:10-14:30 PVG 9C6589,11:35-14:55 PVG HO3135/CA6663/NH974,11:50-15:20 PVG JL9566/MU747,11:50-15:25 PVG CA857/NH5744,12:30-15:50 PVG CZ8105,13:15-16:30 PVG JL894,13:15-16:35 PVG MU4194/FM1011,13:55-17:15 PVG HO1573,14:45-18:00 PVG JL8274/FM821/MU8649,15:10-18:30 PVG 9C6581,16:50-20:30 PVG JL5613/MU233,17:10-20:30 PVG 9C6585,17:25-21:00 PVG FM3051/MU729/JL5608,17:50-20:55 PVG HO1337,18:05-21:10 PVG NH9753/MU3963,18:20-21:35 PVG CA6665/NH976/HO3133
+北京|10月31日|08:40-12:40 PEK NH5722/CA927,08:45-12:35 PEK HU473,09:55-13:55 PKX CZ8029,11:55-16:00 PEK CA127,14:15-18:30 PEK NH980,14:25-18:25 PEK ZH3215/CA6655,16:15-20:10 PEK CA161
+広州|11月8日|08:25-13:05 CAN CZ389,09:40-14:10 CAN 3U7017/JL5070,10:25-15:00 CAN CZ8107
+深圳|9月24日|09:10-14:05 SZX CA7941/ZH661/NH6606,11:20-16:10 SZX CA3839/ZH663/NH5657
+杭州|10月26日|08:00-11:15 HGH CA725/NH5754/SC119,13:20-16:45 HGH GJ8077,14:45-18:20 HGH MF8707
+青島|9月1日|08:00-11:25 TAO CA8885/SC4091/NH6576,12:50-16:20 TAO CA8895/SC4093/NH6573,17:30-21:00 TAO NH6582/SC4095/CA8897
+大連|10月19日|07:35-10:55 DLC CZ641,12:00-15:30 DLC 9C6987
+天津|10月19日|18:55-22:35 TSN 9C8799
+南京|10月19日|09:20-13:00 NKG CA3847/ZH685/NH5650,11:30-14:55 NKG 9C6735
+福州|11月8日|08:20-12:05 FOC MF835
+瀋陽|11月6日|08:35-12:10 SHE CZ611
+マニラ|11月2日|02:40-07:20 MNL GK82,08:10-13:15 MNL Z2188,09:10-14:10 MNL PR412,09:10-14:00 MNL NH5314,13:10-18:20 MNL 5J828,13:55-19:10 MNL NH5330/PR408
+バンコク|10月28日|00:25-07:50 BKK 6E3804/HA5379,01:00-08:15 BKK AS7340/UL3344/JL728/PG4171,01:10-08:45 BKK MM92,08:15-15:45 BKK TG672/LY8435/NH5960/TK8385,23:59-07:20+1 BKK LY8449/TK8384/NH5596/TG622
+チェンマイ|11月8日|00:40-07:30 CNX VZ822
+シンガポール|10月31日|01:25-08:50 SIN NH6264,01:30-08:35 SIN SQ618/AI8176,02:15-09:35 SIN MM774,03:05-10:15 SIN SQ8644/TR818/TR880,08:25-15:30 SIN NH6266/SQ620/FJ5965/AI8178,14:10-21:35 SIN NH6260,14:25-21:25 SIN SQ622/FJ5951/AI8180
+クアラルンプール|10月9日|02:05-09:50 KUL D7532,02:35-10:00 KUL OD860,07:30-15:00 KUL D7530,22:25-05:45+1 KUL FY7042/QR5004/JL7094/MH52
+ハノイ|10月28日|01:00-06:55 HAN NH9718/VN334,01:40-07:50 HAN A12938/W24938/VJ938/JL5018
+ホーチミン|10月20日|00:10-07:20 SGN VN320/NH9706,01:00-08:30 SGN W24828/VJ828/A12828
+ドーハ|10月12日|01:35-17:25 DOH LA5288/JL7996/QR802
+ドバイ|11月8日|03:05-17:05 DXB JL5090/EK316
+アブダビ|11月8日|21:10-11:10+1 AUH ET1530/EY814/MS8150,21:15-11:45+1 AUH NH6376
+イスタンブール|9月13日|02:10-18:50 IST NH6646/TK86
+ヘルシンキ|11月8日|17:00-12:50+1 HEL BA6097/AY67/JL6908
+パリ|10月9日|13:50-09:40+1 CDG AF292/SK9994/KL2326
+ミュンヘン|11月8日|12:25-08:15+1 MUC LH742/NH7881
+ホノルル|10月24日|11:50-15:55+1 HNL CX6303/JL799/AS7593,13:20-18:45+1 HNL JL4604/AS849/HA849,14:30-18:45+1 HNL AS845
+グアム|8月31日|07:15-10:05 GUM UA151/NH6471,16:30-19:20 GUM TW510
+サンフランシスコ|9月10日|10:45-14:50+1 SFO UA35/NH7071
+ロサンゼルス|10月28日|14:10-18:50+1 LAX MH9141/AS7319/JL69/LA7462/AA8414
+ケアンズ|8月12日|12:30-19:00 CNS JQ15/AY6434/JL5084/QF5585
+ブリスベン|8月12日|11:40-19:40 BNE AY6436/JQ23/QF5583
+`};
+function parseFlights(list){
+    const groups = new Map();
+    list.split(",").forEach(x => {
+      const [tm, ap, fls] = x.trim().split(" "); const [dep, arrRaw] = tm.split("-");
+      const key = tm + " " + ap;
+      if (!groups.has(key)) groups.set(key, {dep, arr: arrRaw.replace("+1",""), next: arrRaw.includes("+1"), ap, fl: []});
+      groups.get(key).fl.push(...fls.split("/"));
+    });
+    const seen = new Set(), out = [];
+    groups.forEach(g => {
+      const fl = g.fl.filter(f => !seen.has(f)); fl.forEach(f => seen.add(f));
+      if (!fl.length) return;
+      fl.sort((a,b) => String(flNum(a)).length - String(flNum(b)).length || flNum(a) - flNum(b));
+      out.push({...g, fl});
+    });
+    return out.sort((a,b)=>a.dep.localeCompare(b.dep));
+}
+const ITT = {};
+Object.entries(ITT_RAW).forEach(([o, txt]) => {
+  const RET = {}; (ITT_RET_RAW[o]||"").trim().split("\n").filter(Boolean).forEach(l => { const [city, date, list] = l.split("|"); RET[city] = {date, flights: parseFlights(list)}; });
+  ITT[o] = txt.trim().split("\n").map(line => {
+    const [city, cty, date, list] = line.split("|");
+    return {city, cty, date, flights: parseFlights(list), ret: RET[city] || null};
+  });
+  if (false) txt.trim().split("\n").map(line => {
+    const [city, cty, date, list] = line.split("|");
+    const groups = new Map();
+    list.split(",").forEach(x => {
+      const [tm, ap, fls] = x.trim().split(" "); const [dep, arrRaw] = tm.split("-");
+      const key = tm + " " + ap;
+      if (!groups.has(key)) groups.set(key, {dep, arr: arrRaw.replace("+1",""), next: arrRaw.includes("+1") || arrRaw < dep && !/HNL|SFO|LAX/.test(ap), ap, fl: []});
+      groups.get(key).fl.push(...fls.split("/"));
+    });
+    const seen = new Set(), out = [];
+    groups.forEach(g => {
+      const fl = g.fl.filter(f => !seen.has(f)); fl.forEach(f => seen.add(f));
+      if (!fl.length) return;
+      // 運航会社の推定：便名の桁数が少ないものを先頭に（共同運航便は4桁が多い）
+      fl.sort((a,b) => String(flNum(a)).length - String(flNum(b)).length || flNum(a) - flNum(b));
+      out.push({...g, fl});
+    });
+    out.sort((a,b)=>a.dep.localeCompare(b.dep));
+    return {city, cty, date, flights: out};
+  });
+  // 国際線一覧を実データで置き換え
+  INTL[o] = ITT[o].map(r => [r.city, r.cty, [...new Set(r.flights.map(f=>alOf(f.fl[0])))].map(a=>AIRLINE2[a]||a).join("・"), r.flights.length, r]);
+});
+
+/* ---------- アライアンス ---------- */
+const ALLY_DEF = {
+  star:{name:"スターアライアンス", short:"★ スター", codes:["ANA","NQ","NH","OZ","BR","CA","ZH","SQ","TG","TK","LH","UA","AC","ET","MS","AI","NZ","SA","LX","OS","SN","LO","TP","A3","OU","CM","AV"]},
+  ow:{name:"ワンワールド", short:"◯ ワンワールド", codes:["JAL","JTA","RAC","JL","CX","QR","AY","BA","AA","MH","QF","AS","UL","RJ","IB","AT","FJ","WY"]},
+  st:{name:"スカイチーム", short:"◇ スカイチーム", codes:["KE","AZ","MU","FM","CI","VN","AF","KL","DL","GA","MF","SK","AM","KQ","AR","SV","ME","RO","UX","VS"]},
+};
+const ALLY_OF = {}; Object.entries(ALLY_DEF).forEach(([k,v]) => v.codes.forEach(c => ALLY_OF[c] = k));
+const flAllies = fl => { const out = []; fl.forEach(fn => { const a = ALLY_OF[alOf(fn)]; if (a && !out.includes(a)) out.push(a); }); return out; };
+const allyTags = (fl, compact) => flAllies(fl).map((a,i) => {
+  const opA = ALLY_OF[alOf(fl[0])] === a;
+  return `<span class="ally a-${a}${opA?"":" cs"}" title="${ALLY_DEF[a].name}${opA?"":"（共同運航便名）"}">${compact ? ALLY_DEF[a].short.split(" ")[0] : ALLY_DEF[a].short}</span>`;
+}).join("");
+let allyFilter = "all";
+function allyFilterBar(flights, rerender){
+  const present = ["star","ow","st"].filter(a => flights.some(f => flAllies(f.fl).includes(a)));
+  if (!present.length) return "";
+  return `<div class="filters"><button data-ally="all" class="${allyFilter==="all"?"on":""}">全アライアンス</button>` +
+    present.map(a => `<button data-ally="${a}" class="${allyFilter===a?"on":""} a-btn-${a}">${ALLY_DEF[a].short} ${flights.filter(f=>flAllies(f.fl).includes(a)).length}</button>`).join("") + `</div>`;
+}
+const allyOK = f => allyFilter==="all" || flAllies(f.fl).includes(allyFilter);
+
+/* ---------- 個別に追加した国際線（時刻表サイトに載っていない路線など） ---------- */
+const EXTRA_INTL = [
+  {o:"NRT", city:"カトマンズ", cty:"ネパール", al:"ネパール航空", badge:"週4便",
+   date:"夏ダイヤ（〜10月24日）", src:"ネパール航空 公式サイトの国際線時刻表",
+   note:"ネパール航空の直行便（A330）。冬ダイヤ（10月25日〜）は時刻・曜日が変わることがあります。",
+   out:[{dep:"10:30", arr:"15:00", next:false, ap:"KTM", fl:["RA434"], days:"月・水・金・土"}],
+   ret:[{dep:"22:30", arr:"08:30", next:true, ap:"KTM", fl:["RA433"], days:"火・木・金・日"}]},
+  {o:"NRT", city:"タシケント", cty:"ウズベキスタン", al:"ウズベキスタン航空", badge:"週1便", freq:"w1",
+   date:"冬ダイヤ（10月25日〜）", src:"TRAICY（ウズベキスタン航空の運航計画）・FlightsFrom",
+   note:"日本とウズベキスタンを結ぶ唯一の直行便（ボーイング787）。冬は週1往復、夏は週2往復になる時期があります。",
+   out:[{dep:"11:05", arr:"16:10", next:false, ap:"TAS", fl:["HY528"], days:"金"}],
+   ret:[{dep:"22:05", arr:"09:40", next:true, ap:"TAS", fl:["HY527"], days:"木"}]},
+  {o:"KIX", city:"ダナン", cty:"ベトナム", al:"ベトジェット", badge:"週4便", freq:"w4", start:"2026-12-20",
+   date:"2026年12月20日〜", src:"関西エアポート発表（訪日ラボ 2026年9月3日）",
+   note:"ベトジェットが2026年12月20日に新規就航予定（週4往復）。便名は未発表です。",
+   out:[{dep:"10:10", arr:"13:45", next:false, ap:"DAD", fl:["VJ便"], days:"火・木・土・日"}],
+   ret:[{dep:"02:30", arr:"08:50", next:false, ap:"DAD", fl:["VJ便"], days:"火・木・土・日"}]},
+  {o:"KIX", city:"デリー", cty:"インド", al:"エア・インディア", badge:"週4便", freq:"w4", start:"2027-02-02",
+   date:"2027年2月〜", src:"Aviation Wire（2026年10月16日）",
+   note:"エア・インディアが2027年2月に新規就航予定（ボーイング787-8、週4往復）。デリー〜大阪の唯一の直行便になります。関西発の初便は2月3日。",
+   out:[{dep:"11:50", arr:"18:20", next:false, ap:"DEL", fl:["AI359"], days:"月・水・金・日"}],
+   ret:[{dep:"22:50", arr:"09:50", next:true, ap:"DEL", fl:["AI360"], days:"火・木・土・日"}]},
+];
+EXTRA_INTL.forEach(e => {
+  const upcoming = e.start && TODAY < e.start;
+  const tt = {city:e.city, cty:e.cty, date:e.date, flights:e.out, badge: upcoming ? startLabel(e.start) : e.badge, planned: upcoming, note:(upcoming?"📅 運航予定：":"")+e.note, src:e.src, ret:{date:e.date, flights:e.ret}};
+  (INTL[e.o] = INTL[e.o] || []).push([e.city, e.cty, e.al, e.freq || "w4", tt]);
+});
+AIRLINE2.RA = "ネパール航空"; AIRLINE2.HY = "ウズベキスタン航空";
+
+const EKITAN = {WKJ:1,MBE:2,MMB:3,CTS:4,AKJ:5,SHB:6,OKD:7,KUH:8,OBO:9,HKD:10,RIS:59,OIR:60,AOJ:11,MSJ:12,ONJ:13,AXT:14,HNA:15,SYO:16,GAJ:17,SDJ:18,FKS:20,IBR:84,NRT:21,HND:22,CHF:85,OIM:61,NJM:87,KZS:88,MYE:62,HAC:63,KIJ:19,MMJ:26,TOY:23,KMQ:24,NTQ:25,FSZ:58,NKM:27,NGO:28,ITM:29,KIX:30,UKB:56,SHM:31,TJH:32,OKJ:33,YGJ:34,TTJ:35,IWJ:36,IZO:37,OKI:64,HIJ:38,IWK:92,UBJ:40,TAK:41,MYJ:42,TKS:43,KCZ:44,FUK:45,KMI:46,KKJ:57,HSG:48,NGS:49,TSJ:65,IKI:66,FUJ:67,OIT:50,KMJ:51,AXJ:68,KOJ:52,TNE:69,KUM:70,KKX:71,ASJ:72,TKN:73,OKE:74,RNJ:75,OKA:53,KTD:76,MMD:77,UEO:79,MMY:80,SHI:93,TRA:81,ISG:82,OGN:83};
+const ekitanUrl = (o,d) => (EKITAN[o]&&EKITAN[d]) ? `https://ekitan.com/timetable/airplane/domestic/section/all/sf-${EKITAN[o]}/st-${EKITAN[d]}` : null;
+
+/* ---------- 投影 ---------- */
+const K = 40, LON0 = 121.6, LAT_TOP = 46.2, LAT_BOT = 23.6;
+const merc = lat => Math.log(Math.tan(Math.PI/4 + lat*Math.PI/360));
+const W = (146.6 - LON0) * K;
+const H = (merc(LAT_TOP) - merc(LAT_BOT)) * 180/Math.PI * K;
+const P = (lon, lat) => [(lon - LON0) * K, (merc(LAT_TOP) - merc(lat)) * 180/Math.PI * K];
+
+const NS = "http://www.w3.org/2000/svg";
+const svg = document.getElementById("map");
+const landG = document.getElementById("landG"), routeG = document.getElementById("routeG");
+const apG = document.getElementById("apG"), lblG = document.getElementById("lblG");
+const el = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+
+LAND.forEach(poly => el("path", {class:"land", d:"M"+poly.map(p=>P(p[0],p[1]).map(v=>v.toFixed(1)).join(",")).join("L")+"Z"}, landG));
+ISLES.forEach(([lon,lat,rx,ry]) => {
+  const pts=[]; for(let i=0;i<14;i++){const t=i/14*Math.PI*2; pts.push(P(lon+rx*Math.cos(t), lat+ry*Math.sin(t)).map(v=>v.toFixed(1)).join(","));}
+  el("path", {class:"land", d:"M"+pts.join("L")+"Z"}, landG);
+});
+
+const LABEL_POS = {HND:"b", NRT:"r", UKB:"l", KIX:"b", ITM:"t", NGO:"r", OKD:"l", NKM:"t", HSG:"l", KKJ:"t", TAK:"t", OKJ:"t"};
+const apEls = {}, lblEls = {};
+const routeCount = k => DOM[k].length + (INTL[k]||[]).length;
+Object.entries(AIRPORTS).forEach(([code, [name, lat, lon, major]]) => {
+  const [x,y] = P(lon, lat);
+  const c = el("circle", {cx:x, cy:y, r:5, class:"ap"+(major?"":" small")}, apG);
+  c.dataset.code = code; c.dataset.base = major ? 6.5 : Math.min(5.5, 3.6 + routeCount(code)*0.12);
+  apEls[code] = c;
+  const t = el("text", {x:x+8, y:y+4, class:"lbl"}, lblG);
+  t.textContent = name.replace("東京 ","").replace("大阪 ","").replace("（セントレア）","");
+  t.dataset.major = major; lblEls[code] = t;
+});
+
+/* ---------- ズーム・パン ---------- */
+let vb = {x:0, y:0, w:W, h:H};
+const wrap = document.getElementById("mapWrap");
+function fitAll(){
+  const r = wrap.getBoundingClientRect(), ar = r.width / r.height;
+  let w = W, h = H;
+  if (w/h > ar) h = w/ar; else w = h*ar;
+  vb = {x:(W-w)/2, y:(H-h)/2 - h*0.04, w, h}; apply();
+}
+function scale(){ return wrap.getBoundingClientRect().width / vb.w; }
+function apply(){
+  svg.setAttribute("viewBox", `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+  const s = scale();
+  for (const k in apEls){ const c=apEls[k]; const sel = c.classList.contains("sel"); c.setAttribute("r", (+c.dataset.base*(sel?1.5:1))/s); }
+  for (const k in lblEls){
+    const t=lblEls[k]; t.style.fontSize = (11/s)+"px"; t.style.strokeWidth=(3/s)+"px";
+    const [x,y]=P(AIRPORTS[k][2],AIRPORTS[k][1]); const lp = LABEL_POS[k]||"r";
+    const off = {r:[8,4,"start"], l:[-8,4,"end"], t:[0,-8,"middle"], b:[0,15,"middle"]}[lp];
+    t.setAttribute("x", x+off[0]/s); t.setAttribute("y", y+off[1]/s); t.setAttribute("text-anchor", off[2]);
+    const show = t.dataset.major==="1" || s > 1.1 || t.classList.contains("force");
+    t.style.display = show ? "" : "none";
+  }
+  routeG.querySelectorAll(".route").forEach(p => p.style.strokeWidth = p.dataset.w+"px");
+}
+function zoomAt(f, cx, cy){
+  const r = wrap.getBoundingClientRect();
+  const px = vb.x + (cx - r.left)/r.width*vb.w, py = vb.y + (cy - r.top)/r.height*vb.h;
+  const nw = Math.max(W/14, Math.min(W*1.6, vb.w / f)); const k = nw / vb.w;
+  vb = {x: px - (px - vb.x)*k, y: py - (py - vb.y)*k, w: nw, h: vb.h*k}; apply();
+}
+const pts = new Map(); let moved = 0, lastDist = 0, downTarget = null;
+wrap.addEventListener("pointerdown", e => {
+  if (e.target.closest("#sheet,.ctrls,.hint")) return;
+  wrap.setPointerCapture(e.pointerId); pts.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  moved = 0; downTarget = e.target;
+  if (pts.size === 2){ const [a,b]=[...pts.values()]; lastDist = Math.hypot(a.x-b.x,a.y-b.y); }
+});
+wrap.addEventListener("pointermove", e => {
+  if (!pts.has(e.pointerId)) return;
+  const prev = pts.get(e.pointerId), cur = {x:e.clientX, y:e.clientY}; pts.set(e.pointerId, cur);
+  if (pts.size === 1){
+    const s = scale(); vb.x -= (cur.x-prev.x)/s; vb.y -= (cur.y-prev.y)/s; moved += Math.abs(cur.x-prev.x)+Math.abs(cur.y-prev.y); apply();
+  } else if (pts.size === 2){
+    const [a,b]=[...pts.values()]; const d = Math.hypot(a.x-b.x,a.y-b.y);
+    if (lastDist) zoomAt(d/lastDist, (a.x+b.x)/2, (a.y+b.y)/2); lastDist = d; moved += 99;
+  }
+});
+const up = e => {
+  if (!pts.has(e.pointerId)) return; pts.delete(e.pointerId);
+  if (pts.size === 0 && moved < 8){
+    const t = document.elementFromPoint(e.clientX, e.clientY);
+    if (t && t.dataset && t.dataset.code) select(t.dataset.code);
+    else { const near = nearest(e.clientX, e.clientY); if (near) select(near); }
+  }
+  if (pts.size < 2) lastDist = 0;
+};
+wrap.addEventListener("pointerup", up); wrap.addEventListener("pointercancel", e => {pts.delete(e.pointerId); lastDist=0;});
+wrap.addEventListener("wheel", e => { e.preventDefault(); zoomAt(e.deltaY < 0 ? 1.2 : 1/1.2, e.clientX, e.clientY); }, {passive:false});
+function nearest(cx, cy){
+  const r = wrap.getBoundingClientRect(), s = scale(); let best=null, bd=22;
+  for (const k in AIRPORTS){ const [x,y]=P(AIRPORTS[k][2],AIRPORTS[k][1]); const sx=r.left+(x-vb.x)*s, sy=r.top+(y-vb.y)*s; const d=Math.hypot(sx-cx,sy-cy); if(d<bd){bd=d;best=k;} }
+  return best;
+}
+const centerXY = () => { const r = wrap.getBoundingClientRect(); return [r.left+r.width/2, r.top+r.height/2]; };
+document.getElementById("zin").onclick = () => zoomAt(1.5, ...centerXY());
+document.getElementById("zout").onclick = () => zoomAt(1/1.5, ...centerXY());
+document.getElementById("zreset").onclick = fitAll;
+window.addEventListener("resize", apply);
+
+/* ---------- 選択と表示 ---------- */
+let current = null, tab = "dom";
+const sheet = document.getElementById("sheet");
+function select(code){
+  current = code; routeDest = null; setRouteMode(false); document.getElementById("hint").style.display = "none";
+  const [name] = AIRPORTS[code];
+  const dom = DOM[code], intl = INTL[code] || [];
+  document.getElementById("sCode").textContent = PREF_NOTE[code]!==undefined ? "" : code;
+  document.getElementById("sName").textContent = name + "空港";
+  const dDaily = dom.filter(r=>r.f.kind==="d").length;
+  document.getElementById("sMeta").textContent = `国内線 ${dom.length}路線（うち毎日運航 ${dDaily}）・国際線 ${intl.length}路線`;
+  document.getElementById("tDom").textContent = `国内線 ${dom.length}`;
+  document.getElementById("tIntl").textContent = `国際線 ${intl.length}`;
+  if (tab==="intl" && !intl.length) tab="dom";
+  drawRoutes(); renderList(); sheet.className = "open";
+  if (!noFit) fitRoutes(); noFit = false;
+}
+let noFit = false;
+function fitRoutes(){
+  const codes = [current, ...DOM[current].map(r=>r.to)];
+  const xy = codes.map(c=>P(AIRPORTS[c][2],AIRPORTS[c][1]));
+  let x0=Math.min(...xy.map(p=>p[0])), x1=Math.max(...xy.map(p=>p[0])), y0=Math.min(...xy.map(p=>p[1])), y1=Math.max(...xy.map(p=>p[1]));
+  const pad = 40; x0-=pad; x1+=pad*1.6; y0-=pad; y1+=pad;
+  const r = wrap.getBoundingClientRect(); const visH = r.height*0.40; // シート上の見える部分
+  let w = Math.max(x1-x0, 160), h = Math.max(y1-y0, 160);
+  const ar = r.width / visH; if (w/h > ar) h = w/ar; else w = h*ar;
+  const fullH = w * r.height / r.width;
+  vb = {x:(x0+x1)/2 - w/2, y:(y0+y1)/2 - h/2, w, h: fullH}; apply();
+}
+function drawRoutes(){
+  routeG.innerHTML = "";
+  for (const k in apEls){ apEls[k].classList.remove("sel","dest","dim"); lblEls[k].classList.remove("dim","force"); }
+  if (!current) { apply(); return; }
+  const dests = new Set(DOM[current].map(r=>r.to));
+  for (const k in apEls){
+    if (k===current) { apEls[k].classList.add("sel"); lblEls[k].classList.add("force"); }
+    else if (dests.has(k)) { apEls[k].classList.add("dest"); lblEls[k].classList.add("force"); }
+    else { apEls[k].classList.add("dim"); lblEls[k].classList.add("dim"); }
+  }
+  const [x1,y1] = P(AIRPORTS[current][2], AIRPORTS[current][1]);
+  DOM[current].forEach(r => {
+    const [x2,y2] = P(AIRPORTS[r.to][2], AIRPORTS[r.to][1]);
+    const mx=(x1+x2)/2, my=(y1+y2)/2, dx=x2-x1, dy=y2-y1, len=Math.hypot(dx,dy);
+    const cx = mx - dy*0.18, cy = my + dx*0.18;
+    const w = r.f.kind==="d" ? Math.min(5, 1.4 + Math.sqrt(r.f.n)*0.7) : 1.2;
+    const p = el("path", {class:"route", d:`M${x1},${y1}Q${cx},${cy} ${x2},${y2}`}, routeG);
+    p.dataset.w = w; if (r.f.kind!=="d") p.setAttribute("stroke-dasharray","4 4");
+    if (r.f.kind==="p") p.style.stroke = "#8a5cf0";
+    if (len < 1) p.remove();
+  });
+  apG.appendChild(apEls[current]); apply();
+}
+function freqBadge(f){ return `<span class="freq ${f.kind}">${f.txt}</span>`; }
+function renderList(){
+  document.getElementById("tDom").classList.toggle("on", tab==="dom");
+  document.getElementById("tIntl").classList.toggle("on", tab==="intl");
+  const list = document.getElementById("sList"); let h = "";
+  if (tab === "dom"){
+    const rows = [...DOM[current]].sort((a,b)=>b.f.score-a.f.score);
+    if (!rows.length) h = `<div class="empty">定期便の国内線はありません。</div>`;
+    rows.forEach(r => {
+      const fls = TT[current]&&TT[current][r.to] ? TT[current][r.to].flatMap(f=>f.fl) : r.al.split("・").map(n => ({"JAL":"JAL1","ANA":"ANA1","JTA":"JTA1"}[n]||"X"));
+      h += `<div class="row tap" data-go="${r.to}"><div class="dst"><b>${AIRPORTS[r.to][0]}</b><div class="al">${r.al}</div><div class="allyRow">${allyTags(fls.length?fls:["X"], false).replace(/ cs"/g,'"')}</div></div>${freqBadge(r.f)}<span class="go">›</span></div>`; });
+  } else {
+    const rows = (INTL[current]||[]).map((r,i)=>({city:r[0],cty:r[1],al:r[2],f:parseFreq(r[3]),tt:r[4],idx:i}));
+    if (!rows.length) h = `<div class="empty">現在、定期の国際線はありません（チャーター便を除く）。</div>`;
+    const REGIONS = [
+      ["東アジア", ["韓国","台湾","香港","マカオ","中国","モンゴル"]],
+      ["東南アジア", ["フィリピン","タイ","シンガポール","マレーシア","ベトナム","インドネシア","カンボジア","ブルネイ","ミャンマー","ラオス"]],
+      ["南アジア", ["インド","ネパール","スリランカ","バングラデシュ","モルディブ","パキスタン"]],
+      ["中央アジア", ["ウズベキスタン","カザフスタン","キルギス"]],
+      ["中東", ["カタール","UAE","トルコ","サウジアラビア","イスラエル"]],
+      ["ヨーロッパ", ["イギリス","フランス","ドイツ","オランダ","フィンランド","スイス","イタリア","ポーランド","スペイン","オーストリア","デンマーク","ベルギー","スウェーデン"]],
+      ["北米", ["アメリカ","カナダ"]],
+      ["ハワイ・グアム・太平洋", ["アメリカ（ハワイ）","アメリカ（グアム）","北マリアナ","パラオ","フィジー","タヒチ"]],
+      ["オセアニア", ["オーストラリア","ニュージーランド"]],
+      ["中南米", ["メキシコ","ブラジル","ペルー"]],
+      ["アフリカ", ["エジプト","エチオピア","ケニア","南アフリカ"]],
+    ];
+    const regionOf = c => (REGIONS.find(([,cs]) => cs.includes(c)) || ["その他"])[0];
+    const score = rs => rs.reduce((s,r)=>s+r.f.score,0);
+    const byRegion = {};
+    rows.forEach(r => { const g = regionOf(r.cty); ((byRegion[g] = byRegion[g] || {})[r.cty] = byRegion[g][r.cty] || []).push(r); });
+    const order = [...REGIONS.map(x=>x[0]), "その他"].filter(g => byRegion[g]);
+    if (order.length > 1) h += `<div class="filters regionBar">` + order.map(g => `<button data-jump="${g}">${g} ${Object.values(byRegion[g]).flat().length}</button>`).join("") + `</div>`;
+    order.forEach(g => {
+      h += `<div class="region" id="rg-${g}">${g}</div>`;
+      Object.entries(byRegion[g]).sort((a,b)=>score(b[1])-score(a[1])).forEach(([cty, rs]) => {
+        h += `<div class="grp">${cty}</div>`;
+        rs.sort((a,b)=>b.f.score-a.f.score).forEach(r => { h += r.tt ? `<div class="row tap" data-intl="${r.idx}"><div class="dst"><b>${r.city}</b><div class="al">${r.al}</div><div class="allyRow">${allyTags(r.tt.flights.flatMap(f=>f.fl)).replace(/ cs"/g,'"')}</div></div><span class="freq ${r.tt.planned?"p":r.tt.badge?"w":"d"}">${r.tt.badge || r.tt.flights.length+"便"}</span><span class="go">›</span></div>` : `<div class="row"><div class="dst"><b>${r.city}</b><div class="al">${r.al}</div></div>${freqBadge(r.f)}</div>`; });
+      });
+    });
+  }
+  h += `<div class="note">便数は片道の目安です（2026年冬ダイヤ想定）。「週数便」は毎日運航ではない路線。季節運航・曜日運航・増減便があるため、予約前に各航空会社の時刻表をご確認ください。</div>`;
+  list.innerHTML = h; list.scrollTop = 0;
+  list.querySelectorAll("[data-go]").forEach(d => d.onclick = () => openRoute(current, d.dataset.go));
+  list.querySelectorAll("[data-intl]").forEach(d => d.onclick = () => openIntl(current, +d.dataset.intl));
+  list.querySelectorAll("[data-jump]").forEach(b => b.onclick = () => { const t = document.getElementById("rg-"+b.dataset.jump); if (t) { const bar = list.querySelector(".regionBar"); list.scrollTo({top: t.offsetTop - list.offsetTop - (bar ? bar.offsetHeight : 0) - 6, behavior:"smooth"}); } });
+}
+let routeDest = null, alFilter = "all";
+function setRouteMode(on){
+  document.getElementById("sBack").style.display = on ? "" : "none";
+  document.getElementById("tabsBox").style.display = on ? "none" : "";
+}
+function openRoute(o, d, keepView){
+  intlRoute = null; current = o; routeDest = d; alFilter = "all"; allyFilter = "all"; setRouteMode(true);
+  const on = AIRPORTS[o][0], dn = AIRPORTS[d][0];
+  document.getElementById("sCode").textContent = `${EKITAN[o]&&!PREF_NOTE[o]?o:""} → ${EKITAN[d]&&!PREF_NOTE[d]?d:""}`;
+  document.getElementById("sName").innerHTML = `${on}<span class="arrow">→</span>${dn}`;
+  const flights = TT[o] && TT[o][d];
+  const pl = planOf(o,d);
+  document.getElementById("sMeta").textContent = pl ? (TODAY < pl.start ? `${startLabel(pl.start)} 運航予定` : `1日 ${flights.length}便`) : flights ? `1日 ${flights.length}便（${TT_DATE}の時刻表）` : "";
+  // 地図：この区間だけ強調
+  routeG.innerHTML = "";
+  for (const k in apEls){ apEls[k].classList.remove("sel","dest","dim"); lblEls[k].classList.remove("dim","force");
+    if (k===o) { apEls[k].classList.add("sel"); lblEls[k].classList.add("force"); }
+    else if (k===d) { apEls[k].classList.add("dest"); lblEls[k].classList.add("force"); }
+    else { apEls[k].classList.add("dim"); lblEls[k].classList.add("dim"); } }
+  const [x1,y1]=P(AIRPORTS[o][2],AIRPORTS[o][1]), [x2,y2]=P(AIRPORTS[d][2],AIRPORTS[d][1]);
+  const pth = el("path",{class:"route", d:`M${x1},${y1}Q${(x1+x2)/2-(y2-y1)*0.18},${(y1+y2)/2+(x2-x1)*0.18} ${x2},${y2}`},routeG); pth.dataset.w = 4;
+  if (!keepView) { const sv = current; fitCodes([o,d]); }
+  apply(); renderRoute(); sheet.className = "open"; document.getElementById("hint").style.display = "none";
+}
+function renderRoute(){
+  const o = current, d = routeDest, list = document.getElementById("sList");
+  const flights = TT[o] && TT[o][d]; let h = "";
+  const pl = planOf(o,d);
+  if (pl) h += `<div class="plan">📅 <b>${TODAY < pl.start ? "運航予定" : "運航中"}</b>：${pl.note}<br><small>出典：${pl.src}</small></div>`;
+  if (flights){
+    const als = [...new Set(flights.flatMap(f=>f.fl.map(alOf)))];
+    if (als.length > 1){
+      h += `<div class="filters"><button data-al="all" class="${alFilter==="all"?"on":""}">すべて ${flights.length}</button>` +
+        als.map(a => `<button data-al="${a}" class="${alFilter===a?"on":""}">${AL_NAME[a]||a} ${flights.filter(f=>f.fl.some(x=>alOf(x)===a)).length}</button>`).join("") + `</div>`;
+    }
+    h += allyFilterBar(flights);
+    let lastH = "";
+    flights.filter(f => (alFilter==="all" || f.fl.some(x=>alOf(x)===alFilter)) && allyOK(f)).forEach(f => {
+      const hr = f.dep.slice(0,2);
+      if (hr !== lastH){ h += `<div class="hour">${+hr}時台</div>`; lastH = hr; }
+      const chips = f.fl.map((fn,i) => `<span class="chip${i?" cs":""}" style="background:${AL_COLOR[alOf(fn)]||"#667"}">${fn.replace(/^([A-Z]+)/,"$1 ")}</span>`).join("");
+      h += `<div class="fl"><div class="t">${f.dep} <small>→ ${f.arr}</small></div><div><div class="n">${chips}</div><div class="allyRow">${allyTags(f.fl)}</div></div></div>`;
+    });
+    h += `<div class="note">${TT_DATE}の駅探掲載の時刻表です。曜日や日付によって運休・時刻変更がある場合があります。同じ時刻に2つの便名がある便は共同運航（1機に2つの便名）です。アライアンス表示：塗りつぶし＝運航会社、枠だけ＝共同運航の便名（例：IBEX運航のANA便名）。</div>`;
+  } else {
+    const r = DOM[o].find(x=>x.to===d);
+    h += `<div class="empty">この区間の便名・時刻はまだ取り込んでいません。<br>${r ? `目安：${r.f.txt}（${r.al}）` : ""}</div>`;
+  }
+  const url = ekitanUrl(o,d);
+  h += `<div class="actions">` +
+    (url ? `<a class="btn pri" href="${url}" target="_blank" rel="noopener">最新の時刻表を見る（駅探）</a>` : "") +
+    (DOM[d].some(x=>x.to===o) ? `<button class="btn" id="revBtn">逆方向 ${AIRPORTS[d][0]}→${AIRPORTS[o][0]}</button>` : "") +
+    `<button class="btn" id="destBtn">${AIRPORTS[d][0]}発の路線一覧</button></div>`;
+  list.innerHTML = h; list.scrollTop = 0;
+  list.querySelectorAll("[data-al]").forEach(b => b.onclick = () => { alFilter = b.dataset.al; renderRoute(); });
+  list.querySelectorAll("[data-ally]").forEach(b => b.onclick = () => { allyFilter = b.dataset.ally; renderRoute(); });
+  const rb = document.getElementById("revBtn"); if (rb) rb.onclick = () => openRoute(d, o, true);
+  document.getElementById("destBtn").onclick = () => select(d);
+}
+let intlRoute = null, intlDir = "out", intlOrigin = null;
+function openIntl(o, idx, dir){
+  const base = INTL[o][idx][4]; intlOrigin = o; intlDir = dir || "out";
+  const r = intlDir === "ret" ? {...base, ...base.ret, base, idx} : {...base, base, idx};
+  intlRoute = r; routeDest = null; alFilter = "all"; allyFilter = "all"; setRouteMode(true);
+  const aps = [...new Set(r.flights.map(f=>f.ap))].join("・");
+  document.getElementById("sCode").textContent = intlDir==="ret" ? `${aps} → ${o}` : `${o} → ${aps}`;
+  document.getElementById("sName").innerHTML = intlDir==="ret" ? `${r.city}<span class="arrow">→</span>${AIRPORTS[o][0]}` : `${AIRPORTS[o][0]}<span class="arrow">→</span>${r.city}`;
+  document.getElementById("sMeta").textContent = r.base.badge ? `${r.cty}・${r.base.badge}（${r.date}）` : `${r.cty}・${r.flights.length}便（${r.date}の時刻表）`;
+  renderIntl();
+}
+function renderIntl(){
+  const r = intlRoute, list = document.getElementById("sList"); let h = "";
+  h += `<div class="filters dir"><button data-dir="out" class="${intlDir==="out"?"on":""}">往路 ${AIRPORTS[intlOrigin][0]}発 ${r.base.flights.length}</button>` +
+       (r.base.ret ? `<button data-dir="ret" class="${intlDir==="ret"?"on":""}">復路 ${r.city}発 ${r.base.ret.flights.length}</button>` : `<button disabled style="opacity:.5">復路データなし</button>`) + `</div>`;
+  const ops = [...new Set(r.flights.map(f=>alOf(f.fl[0])))];
+  if (ops.length > 1) h += `<div class="filters"><button data-al="all" class="${alFilter==="all"?"on":""}">すべて ${r.flights.length}</button>` +
+    ops.map(a => `<button data-al="${a}" class="${alFilter===a?"on":""}">${AIRLINE2[a]||a} ${r.flights.filter(f=>alOf(f.fl[0])===a).length}</button>`).join("") + `</div>`;
+  if (r.base.note) h += `<div class="plan">ℹ️ ${r.base.note}<br><small>出典：${r.base.src}</small></div>`;
+  h += allyFilterBar(r.flights);
+  const multiAp = new Set(r.flights.map(f=>f.ap)).size > 1;
+  let lastH = "";
+  r.flights.filter(f => (alFilter==="all" || alOf(f.fl[0])===alFilter) && allyOK(f)).forEach(f => {
+    const hr = f.dep.slice(0,2); if (hr !== lastH){ h += `<div class="hour">${+hr}時台</div>`; lastH = hr; }
+    const chips = f.fl.map((fn,i) => `<span class="chip${i?" cs":""}" style="background:${i? "#8a97a6" : (AL2_COLOR[alOf(fn)]||"#4a5868")}">${/\d/.test(fn) ? fn.slice(0,2)+" "+flNum(fn) : fn}</span>`).join("");
+    h += `<div class="fl"><div class="t">${f.dep} <small>→ ${f.arr}${f.next?"<sup>+1</sup>":""}${multiAp?(intlDir==="ret"?" ("+f.ap+"発)":" "+f.ap):""}${f.days?"<br>"+f.days:""}</small></div><div><div class="n">${chips}</div><div class="allyRow">${allyTags(f.fl)}</div></div></div>`;
+  });
+  h += `<div class="note">${intlDir==="ret" ? "出発は現地時間、到着は日本時間です。" : "出発は日本時間、到着は現地時間です。"}濃い色の便名が運航会社（推定）、グレーは共同運航の便名です。アライアンス表示は塗りつぶし＝運航会社、枠だけ＝共同運航の便名で、マイル積算の目安になります（加算条件は各社でご確認ください）。駅探の${r.date}の掲載分で、曜日・季節によって運航しない便があります。</div>`;
+  list.innerHTML = h; list.scrollTop = 0;
+  list.querySelectorAll("[data-al]").forEach(b => b.onclick = () => { alFilter = b.dataset.al; renderIntl(); });
+  list.querySelectorAll("[data-ally]").forEach(b => b.onclick = () => { allyFilter = b.dataset.ally; renderIntl(); });
+  list.querySelectorAll("[data-dir]").forEach(b => b.onclick = () => openIntl(intlOrigin, r.idx, b.dataset.dir));
+}
+function fitCodes(codes){
+  const xy = codes.map(c=>P(AIRPORTS[c][2],AIRPORTS[c][1]));
+  let x0=Math.min(...xy.map(p=>p[0])), x1=Math.max(...xy.map(p=>p[0])), y0=Math.min(...xy.map(p=>p[1])), y1=Math.max(...xy.map(p=>p[1]));
+  const pad = 40; x0-=pad; x1+=pad*1.6; y0-=pad; y1+=pad;
+  const r = wrap.getBoundingClientRect(); const visH = r.height*0.40;
+  let w = Math.max(x1-x0, 160), h = Math.max(y1-y0, 160);
+  const ar = r.width / visH; if (w/h > ar) h = w/ar; else w = h*ar;
+  vb = {x:(x0+x1)/2 - w/2, y:(y0+y1)/2 - h/2, w, h: w * r.height / r.width}; apply();
+}
+document.getElementById("sBack").onclick = () => { const wasIntl = !!intlRoute && !routeDest; intlRoute = null; if (wasIntl) { tab = "intl"; noFit = true; } select(current); };
+function focusOn(code){
+  const [x,y] = P(AIRPORTS[code][2], AIRPORTS[code][1]);
+  vb.x = x - vb.w/2; vb.y = y - vb.h*0.3; apply();
+}
+document.getElementById("tDom").onclick = () => { tab="dom"; renderList(); };
+document.getElementById("tIntl").onclick = () => { tab="intl"; renderList(); };
+document.getElementById("sClose").onclick = () => { current=null; sheet.className=""; drawRoutes(); fitAll(); };
+document.getElementById("grab").onclick = () => { sheet.className = sheet.className==="open" ? "open mini" : "open"; };
+
+/* ---------- 検索 ---------- */
+const q = document.getElementById("q"), sugg = document.getElementById("sugg");
+q.addEventListener("input", () => {
+  const s = q.value.trim().toLowerCase(); if (!s){ sugg.style.display="none"; return; }
+  const hits = Object.entries(AIRPORTS).filter(([c,[n]]) => c.toLowerCase().includes(s) || n.toLowerCase().includes(s)).slice(0,12);
+  sugg.innerHTML = hits.map(([c,[n]]) => `<div data-c="${c}">${n}<small>${PREF_NOTE[c]!==undefined?"":c}</small></div>`).join("") || `<div>見つかりません</div>`;
+  sugg.style.display = "block";
+  sugg.querySelectorAll("[data-c]").forEach(d => d.onclick = () => { q.value=""; sugg.style.display="none"; q.blur(); select(d.dataset.c); });
+});
+
+fitAll();
+try { if ("serviceWorker" in navigator && location.protocol === "https:" && window.top === window.self) navigator.serviceWorker.register("sw.js"); } catch (e) {}
+</script>
+</body>
+</html>
