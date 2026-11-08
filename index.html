@@ -102,6 +102,9 @@ svg.world .lbl:not(.selLbl){display:none}
 .fl .n{display:flex;flex-wrap:wrap;gap:4px}
 .chip{font-size:12px;font-weight:700;color:#fff;border-radius:6px;padding:3px 7px;white-space:nowrap}
 .chip.cs{opacity:.75}
+.aln{font-size:12.5px;color:var(--ink);margin-top:4px;line-height:1.4}
+.aln b{font-weight:800}
+.aln span{color:var(--sub);font-size:11.5px}
 .actions{display:flex;gap:6px;flex-wrap:wrap;padding:12px 4px 0}
 .btn{border:1px solid #cfd8e2;background:#fff;border-radius:10px;padding:9px 11px;font-size:13px;font-weight:600;color:var(--ink);text-decoration:none;display:inline-block}
 .btn.pri{background:var(--dom);color:#fff;border-color:var(--dom)}
@@ -1197,6 +1200,12 @@ HND>ASJ|11:15-13:40 JAL659
 const AL_NAME = {JAL:"JAL",ANA:"ANA",JTA:"JTA",IBX:"IBEX",AMX:"天草エアライン",SFJ:"スターフライヤー",JJP:"ジェットスター",APJ:"ピーチ",SKY:"スカイマーク",SNA:"ソラシドエア",ADO:"エア・ドゥ",TOK:"トキエア",FDA:"FDA",HAC:"HAC",ORC:"ORC",RAC:"RAC",SJO:"スプリング・ジャパン",NCA:"新中央航空",TAL:"東邦航空"};
 const AL_COLOR = {JAL:"#d7263d",ANA:"#1a4fa0",JTA:"#d7263d",IBX:"#5a6b7d",AMX:"#2a9d8f",SFJ:"#222",JJP:"#f28c28",APJ:"#d63a8c",SKY:"#2b6cb0",SNA:"#5aa83c",ADO:"#e0a800",TOK:"#3aa3c9",FDA:"#8e44ad"};
 const TT = {};
+function alnLine(fl, names){
+  const FULL = {JAL:"日本航空（JAL）",ANA:"全日空（ANA）",JL:"日本航空（JAL）",NH:"全日空（ANA）",JTA:"日本トランスオーシャン航空",IBX:"IBEXエアラインズ",FDA:"フジドリームエアラインズ",HAC:"北海道エアシステム",ORC:"オリエンタルエアブリッジ",RAC:"琉球エアーコミューター",KL:"KLMオランダ航空"};
+  const nm = a => FULL[a] || names[a] || a;
+  const ops = nm(alOf(fl[0])); const cs = [...new Set(fl.slice(1).map(x=>nm(alOf(x))))].filter(n=>n!==ops);
+  return `<div class="aln"><b>${ops}</b>${cs.length?`<span>（共同運航：${cs.join("・")}）</span>`:""}</div>`;
+}
 const alOf = fn => /^[A-Z]{3}\d/.test(fn) ? fn.slice(0,3) : fn.slice(0,2);
 TT_RAW.trim().split("\n").forEach(line => {
   const [od, list] = line.split("|"); const [o, d] = od.split(">");
@@ -1419,7 +1428,7 @@ const ITT_RAW = {HND:`
 ケアンズ|オーストラリア|11月1日|21:25-05:40+1 CNS JL5083/AY6433/JQ16/QF5586
 ブリスベン|オーストラリア|8月12日|21:45-07:25+1 BNE JQ24/AY6435/QF5584
 `};
-const AIRLINE2 = {KE:"大韓航空",OZ:"アシアナ","7C":"チェジュ航空",LJ:"ジンエアー",TW:"ティーウェイ",BX:"エアプサン",RS:"エアソウル",ZE:"イースター",WE:"パラタ航空",MM:"ピーチ",JL:"JAL",NH:"ANA",GK:"ジェットスター",BR:"エバー航空",CI:"チャイナエアライン",IT:"タイガーエア台湾",JX:"スターラックス",VZ:"タイ・ベトジェット",SL:"タイ・ライオン",D7:"エアアジアX",AK:"エアアジア",CX:"キャセイ",HX:"香港航空",UO:"HK Express",HB:"グレーターベイ航空",NX:"マカオ航空",MU:"中国東方",FM:"上海航空",HO:"吉祥航空","9C":"春秋航空",CA:"中国国際航空",CZ:"中国南方",ZH:"深圳航空",SC:"山東航空",HU:"海南航空",GJ:"長龍航空",MF:"厦門航空",PR:"フィリピン航空","5J":"セブパシフィック",Z2:"エアアジア・フィリピン",TG:"タイ国際",SQ:"シンガポール航空",TR:"スクート",MH:"マレーシア航空",OD:"バティック・エア",FY:"ファイアフライ",VN:"ベトナム航空",VJ:"ベトジェット",QR:"カタール航空",EK:"エミレーツ",EY:"エティハド",TK:"ターキッシュ",AY:"フィンエアー",AF:"エールフランス",KL:"KLM",LH:"ルフトハンザ",HA:"ハワイアン",AS:"アラスカ航空",UA:"ユナイテッド",AA:"アメリカン",DL:"デルタ",JQ:"ジェットスター",QF:"カンタス",PG:"バンコク・エアウェイズ",UL:"スリランカ航空",LA:"LATAM",SK:"SAS"};
+const AIRLINE2 = {"6E":"インディゴ",FJ:"フィジー・エアウェイズ",KE:"大韓航空",OZ:"アシアナ","7C":"チェジュ航空",LJ:"ジンエアー",TW:"ティーウェイ",BX:"エアプサン",RS:"エアソウル",ZE:"イースター",WE:"パラタ航空",MM:"ピーチ",JL:"JAL",NH:"ANA",GK:"ジェットスター",BR:"エバー航空",CI:"チャイナエアライン",IT:"タイガーエア台湾",JX:"スターラックス",VZ:"タイ・ベトジェット",SL:"タイ・ライオン",D7:"エアアジアX",AK:"エアアジア",CX:"キャセイ",HX:"香港航空",UO:"HK Express",HB:"グレーターベイ航空",NX:"マカオ航空",MU:"中国東方",FM:"上海航空",HO:"吉祥航空","9C":"春秋航空",CA:"中国国際航空",CZ:"中国南方",ZH:"深圳航空",SC:"山東航空",HU:"海南航空",GJ:"長龍航空",MF:"厦門航空",PR:"フィリピン航空","5J":"セブパシフィック",Z2:"エアアジア・フィリピン",TG:"タイ国際",SQ:"シンガポール航空",TR:"スクート",MH:"マレーシア航空",OD:"バティック・エア",FY:"ファイアフライ",VN:"ベトナム航空",VJ:"ベトジェット",QR:"カタール航空",EK:"エミレーツ",EY:"エティハド",TK:"ターキッシュ",AY:"フィンエアー",AF:"エールフランス",KL:"KLM",LH:"ルフトハンザ",HA:"ハワイアン",AS:"アラスカ航空",UA:"ユナイテッド",AA:"アメリカン",DL:"デルタ",JQ:"ジェットスター",QF:"カンタス",PG:"バンコク・エアウェイズ",UL:"スリランカ航空",LA:"LATAM",SK:"SAS"};
 const AL2_COLOR = {KE:"#1d6fb8",OZ:"#5b5b5b",MM:"#d63a8c",JL:"#d7263d",NH:"#1a4fa0",BR:"#1e7d4c",CI:"#c43e7a",CX:"#00645a",TG:"#5b2a86",SQ:"#f2a900",UA:"#1a3d7c",EK:"#c8102e",QR:"#5c0632",TW:"#c4002b","7C":"#f15a22",LJ:"#5e8f00",BX:"#2a6fb5",GK:"#f28c28",JQ:"#f28c28",UO:"#7a3f9d",HX:"#c8102e",MU:"#1f3b85",CA:"#c8102e",CZ:"#0b5aa3",IT:"#f6a800",JX:"#8a6d3b",VJ:"#e3262e",VN:"#1a6aa8"};
 Object.assign(AIRLINE2, {AZ:"ITAエアウェイズ",SK:"SAS",DL:"デルタ航空",SV:"サウディア",VA:"ヴァージン・オーストラリア",BK:"奥凱航空",KC:"エア・アスタナ",ZG:"ZIPAIR",LY:"エル・アル",WS:"ウエストジェット",OM:"MIATモンゴル航空",BI:"ロイヤルブルネイ",FD:"タイ・エアアジア",YP:"エアプレミア",TN:"エア・タヒチ・ヌイ",AM:"アエロメヒコ",IJ:"スプリング・ジャパン",K6:"カンボジア・アンコール航空",MS:"エジプト航空",LO:"LOTポーランド航空",OS:"オーストリア航空",LX:"スイス インターナショナル",ET:"エチオピア航空",AI:"エア・インディア",NQ:"エアージャパン",AC:"エア・カナダ",NZ:"ニュージーランド航空","3U":"四川航空",GA:"ガルーダ・インドネシア",BA:"ブリティッシュ・エアウェイズ",IB:"イベリア航空",AY:"フィンエアー",MH:"マレーシア航空",HA:"ハワイアン航空",AS:"アラスカ航空",TK:"ターキッシュ エアラインズ",EY:"エティハド航空",VS:"ヴァージン・アトランティック",KE:"大韓航空",LA:"LATAM",UL:"スリランカ航空",JQ:"ジェットスター",QF:"カンタス航空",SQ:"シンガポール航空",TR:"スクート",VJ:"ベトジェット",VN:"ベトナム航空",PR:"フィリピン航空","5J":"セブパシフィック",Z2:"エアアジア・フィリピン",FY:"ファイアフライ",OD:"バティック・エア",HB:"グレーターベイ航空",UO:"HK Express",HX:"香港航空",NX:"マカオ航空",SL:"タイ・ライオン",VZ:"タイ・ベトジェット",JX:"スターラックス",IT:"タイガーエア台湾",GK:"ジェットスター・ジャパン",MM:"ピーチ",RS:"エアソウル",ZE:"イースター航空",WE:"パラタ航空",YP:"エアプレミア"});
 Object.assign(AL2_COLOR, {ZG:"#2c2c2c",EK:"#c8102e",AC:"#d22630",LH:"#0a1d3d",AF:"#002157",KL:"#00a1de",QF:"#e40000",NZ:"#111",TK:"#c8102e",AY:"#0b1560",MS:"#1b3f8b",LO:"#0f3e8a",SQ:"#f2a900",PR:"#0038a8","5J":"#f6c300"});
@@ -1883,7 +1892,7 @@ function renderRoute(){
       const hr = f.dep.slice(0,2);
       if (hr !== lastH){ h += `<div class="hour">${+hr}時台</div>`; lastH = hr; }
       const chips = f.fl.map((fn,i) => `<span class="chip${i?" cs":""}" style="background:${AL_COLOR[alOf(fn)]||"#667"}">${fn.replace(/^([A-Z]+)/,"$1 ")}</span>`).join("");
-      h += `<div class="fl"><div class="t">${f.dep} <small>→ ${f.arr}</small></div><div><div class="n">${chips}</div><div class="allyRow">${allyTags(f.fl)}</div></div></div>`;
+      h += `<div class="fl"><div class="t">${f.dep} <small>→ ${f.arr}</small></div><div><div class="n">${chips}</div>${alnLine(f.fl, AL_NAME)}<div class="allyRow">${allyTags(f.fl)}</div></div></div>`;
     });
     h += `<div class="note">${TT_DATE}の駅探掲載の時刻表です。曜日や日付によって運休・時刻変更がある場合があります。同じ時刻に2つの便名がある便は共同運航（1機に2つの便名）です。アライアンス表示：塗りつぶし＝運航会社、枠だけ＝共同運航の便名（例：IBEX運航のANA便名）。</div>`;
   } else {
@@ -1927,7 +1936,7 @@ function renderIntl(){
   r.flights.filter(f => (alFilter==="all" || alOf(f.fl[0])===alFilter) && allyOK(f)).forEach(f => {
     const hr = f.dep.slice(0,2); if (hr !== lastH){ h += `<div class="hour">${+hr}時台</div>`; lastH = hr; }
     const chips = f.fl.map((fn,i) => `<span class="chip${i?" cs":""}" style="background:${i? "#8a97a6" : (AL2_COLOR[alOf(fn)]||"#4a5868")}">${/\d/.test(fn) ? fn.slice(0,2)+" "+flNum(fn) : fn}</span>`).join("");
-    h += `<div class="fl"><div class="t">${f.dep} <small>→ ${f.arr}${f.next?"<sup>+1</sup>":""}${multiAp?(intlDir==="ret"?" ("+f.ap+"発)":" "+f.ap):""}${f.days?"<br>"+f.days:""}</small></div><div><div class="n">${chips}</div><div class="allyRow">${allyTags(f.fl)}</div></div></div>`;
+    h += `<div class="fl"><div class="t">${f.dep} <small>→ ${f.arr}${f.next?"<sup>+1</sup>":""}${multiAp?(intlDir==="ret"?" ("+f.ap+"発)":" "+f.ap):""}${f.days?"<br>"+f.days:""}</small></div><div><div class="n">${chips}</div>${alnLine(f.fl, AIRLINE2)}<div class="allyRow">${allyTags(f.fl)}</div></div></div>`;
   });
   h += `<div class="note">${intlDir==="ret" ? "出発は現地時間、到着は日本時間です。" : "出発は日本時間、到着は現地時間です。"}濃い色の便名が運航会社（推定）、グレーは共同運航の便名です。アライアンス表示は塗りつぶし＝運航会社、枠だけ＝共同運航の便名で、マイル積算の目安になります（加算条件は各社でご確認ください）。駅探の${r.date}の掲載分で、曜日・季節によって運航しない便があります。</div>`;
   list.innerHTML = h; list.scrollTop = 0;
