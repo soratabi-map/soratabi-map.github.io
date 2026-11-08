@@ -1572,6 +1572,13 @@ const EXTRA_INTL = [
    note:"エア・インディアが2027年2月に新規就航予定（ボーイング787-8、週4往復）。デリー〜大阪の唯一の直行便になります。関西発の初便は2月3日。",
    out:[{dep:"11:50", arr:"18:20", next:false, ap:"DEL", fl:["AI359"], days:"月・水・金・日"}],
    ret:[{dep:"22:50", arr:"09:50", next:true, ap:"DEL", fl:["AI360"], days:"火・木・土・日"}]},
+  {o:"KIX", city:"セブ", cty:"フィリピン", al:"セブパシフィック・フィリピン航空", badge:"週12便", freq:"w12",
+   date:"2026年秋の運航実績", src:"FlightMapper・Airpaz・KAYAK などの運航データ（駅探に掲載なし）",
+   note:"セブパシフィック（毎日）とフィリピン航空（週5便）の直行便。駅探に載っていないため、複数の運航データから時刻を確認しています。冬ダイヤで時刻・曜日が変わることがあるので、予約前に各航空会社でご確認ください。",
+   out:[{dep:"09:15", arr:"13:10", next:false, ap:"CEB", fl:["5J5109"], days:"毎日"},
+        {dep:"18:20", arr:"22:05", next:false, ap:"CEB", fl:["PR409"], days:"月・水・木・土・日"}],
+   ret:[{dep:"03:05", arr:"08:15", next:false, ap:"CEB", fl:["5J5108"], days:"毎日"},
+        {dep:"08:25", arr:"13:35", next:false, ap:"CEB", fl:["PR410"], days:"週5便"}]},
 ];
 EXTRA_INTL.forEach(e => {
   const upcoming = e.start && TODAY < e.start;
@@ -1945,7 +1952,7 @@ function renderIntl(){
     const chips = f.fl.map((fn,i) => `<span class="chip${i?" cs":""}" style="background:${i? "#8a97a6" : (AL2_COLOR[alOf(fn)]||"#4a5868")}">${/\d/.test(fn) ? fn.slice(0,2)+" "+flNum(fn) : fn}</span>`).join("");
     h += `<div class="fl"><div class="t">${f.dep} <small>→ ${f.arr}${f.next?"<sup>+1</sup>":""}${multiAp?(intlDir==="ret"?" ("+f.ap+"発)":" "+f.ap):""}${f.days?"<br>"+f.days:""}</small></div><div><div class="n">${chips}</div>${alnLine(f.fl, AIRLINE2)}<div class="allyRow">${allyTags(f.fl)}</div></div></div>`;
   });
-  h += `<div class="note">${intlDir==="ret" ? "出発は現地時間、到着は日本時間です。" : "出発は日本時間、到着は現地時間です。"}濃い色の便名が運航会社（推定）、グレーは共同運航の便名です。アライアンス表示は塗りつぶし＝運航会社、枠だけ＝共同運航の便名で、マイル積算の目安になります（加算条件は各社でご確認ください）。駅探の${r.date}の掲載分で、曜日・季節によって運航しない便があります。</div>`;
+  h += `<div class="note">${intlDir==="ret" ? "出発は現地時間、到着は日本時間です。" : "出発は日本時間、到着は現地時間です。"}濃い色の便名が運航会社（推定）、グレーは共同運航の便名です。アライアンス表示は塗りつぶし＝運航会社、枠だけ＝共同運航の便名で、マイル積算の目安になります（加算条件は各社でご確認ください）。${r.base.src ? `時刻は上の出典（${r.date}）によるもので` : `駅探の${r.date}の掲載分で`}、曜日・季節によって運航しない便があります。</div>`;
   list.innerHTML = h; list.scrollTop = 0;
   list.querySelectorAll("[data-al]").forEach(b => b.onclick = () => { alFilter = b.dataset.al; renderIntl(); });
   list.querySelectorAll("[data-ally]").forEach(b => b.onclick = () => { allyFilter = b.dataset.ally; renderIntl(); });
