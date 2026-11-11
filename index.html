@@ -1532,13 +1532,14 @@ const ALLY_OF = {}; Object.entries(ALLY_DEF).forEach(([k,v]) => v.codes.forEach(
 const flAllies = fl => { const out = []; fl.forEach(fn => { const a = ALLY_OF[alOf(fn)]; if (a && !out.includes(a)) out.push(a); }); return out; };
 const allyTags = (fl, compact) => flAllies(fl).map((a,i) => {
   const opA = ALLY_OF[alOf(fl[0])] === a;
-  return `<span class="ally a-${a}${opA?"":" cs"}" title="${ALLY_DEF[a].name}${opA?"":"（共同運航便名）"}">${compact ? ALLY_DEF[a].short.split(" ")[0] : ALLY_DEF[a].short}</span>`;
+  const lbl = compact ? ALLY_DEF[a].short.split(" ")[0] : ALLY_DEF[a].short;
+  return `<span class="ally a-${a}${opA?"":" cs"}" title="${ALLY_DEF[a].name}${opA?"":"（共同運航便名のみ。運航会社は非加盟）"}">${opA ? lbl : lbl + "便名あり"}</span>`;
 }).join("");
 // 路線一覧用：加盟社が運航する便があれば塗りつぶし、共同運航の便名だけなら枠のみ
 function routeAllyTags(flights){
   const all = [], op = new Set();
   flights.forEach(f => { flAllies(f.fl).forEach(a => { if (!all.includes(a)) all.push(a); }); const a0 = ALLY_OF[alOf(f.fl[0])]; if (a0) op.add(a0); });
-  all.sort((a,b) => op.has(b) - op.has(a));
+  all.splice(0, all.length, ...all.filter(a => op.has(a)));
   return all.map(a => `<span class="ally a-${a}${op.has(a)?"":" cs"}" title="${ALLY_DEF[a].name}${op.has(a)?"":"（加盟社の共同運航便名のみ。運航会社は非加盟）"}">${ALLY_DEF[a].short}</span>`).join("");
 }
 // 時刻表のない路線：航空会社名からアライアンスを判定
