@@ -1541,6 +1541,21 @@ function routeAllyTags(flights){
   all.sort((a,b) => op.has(b) - op.has(a));
   return all.map(a => `<span class="ally a-${a}${op.has(a)?"":" cs"}" title="${ALLY_DEF[a].name}${op.has(a)?"":"（加盟社の共同運航便名のみ。運航会社は非加盟）"}">${ALLY_DEF[a].short}</span>`).join("");
 }
+// 時刻表のない路線：航空会社名からアライアンスを判定
+let _n2c = null;
+function nameCode(n){
+  if (!_n2c){ _n2c = {"ANA":"NH","JAL":"JL","全日空":"NH","日本航空":"JL","エアカナダ":"AC","ユナイテッド":"UA","ユナイテッド航空":"UA","デルタ":"DL","アメリカン":"AA","キャセイパシフィック":"CX","キャセイ":"CX","ルフトハンザ":"LH","ルフトハンザ ドイツ航空":"LH","シンガポール航空":"SQ","タイ国際航空":"TG","エバー航空":"BR","アシアナ":"OZ","アシアナ航空":"OZ","中国国際航空":"CA","中国東方航空":"MU","中国南方航空":"CZ","厦門航空":"MF","深圳航空":"ZH","ベトナム航空":"VN","ガルーダ・インドネシア航空":"GA","マレーシア航空":"MH","フィンエアー":"AY","カンタス航空":"QF","カタール航空":"QR","エミレーツ航空":"EK","ターキッシュ エアラインズ":"TK","エールフランス":"AF","KLMオランダ航空":"KL","イベリア航空":"IB","チャイナエアライン":"CI","大韓航空":"KE","エア・インディア":"AI","エアインディア":"AI","ニュージーランド航空":"NZ","フィリピン航空":"PR","スターラックス":"JX","ブリティッシュ・エアウェイズ":"BA","エティハド航空":"EY","スカンジナビア航空":"SK","LOTポーランド航空":"LO","オーストリア航空":"OS","スイス インターナショナル エアラインズ":"LX","エアプサン":"BX","ITAエアウェイズ":"AZ","エチオピア航空":"ET","アエロメヒコ":"AM","エジプト航空":"MS","ハワイアン航空":"HA","ハワイアン":"HA","エア・カナダ":"AC","エア・インディア":"AI","アラスカ航空":"AS","山東航空":"SC","四川航空":"3U","海南航空":"HN","ビーマン・バングラデシュ航空":"BG","フィジー・エアウェイズ":"FJ"};
+    for (const c in AIRLINE2) if (!_n2c[AIRLINE2[c]]) _n2c[AIRLINE2[c]] = c; }
+  n = n.replace(/（.*?）/g,"").trim();
+  return _n2c[n] || _n2c[n.replace(/[・\s]/g,"")] || null;
+}
+function staticAllyTags(al){
+  nameCode("");
+  let rest = al.replace(/（.*?）/g,""); const codes = [];
+  Object.keys(_n2c).filter(n=>n.length>=2).sort((x,y)=>y.length-x.length).forEach(n => { if (rest.includes(n)) { codes.push(_n2c[n]); rest = rest.split(n).join("|"); } });
+  const set = new Set(); codes.forEach(c => { const a = ALLY_OF[c]; if (a) set.add(a); });
+  return [...set].map(a => `<span class="ally a-${a}" title="${ALLY_DEF[a].name}">${ALLY_DEF[a].short}</span>`).join("");
+}
 let allyFilter = "all";
 function allyFilterBar(flights, rerender){
   const present = ["star","ow","st"].filter(a => flights.some(f => flAllies(f.fl).includes(a)));
@@ -1933,7 +1948,7 @@ function renderList(){
       h += `<div class="region" id="rg-${g}">${g}</div>`;
       Object.entries(byRegion[g]).sort((a,b)=>score(b[1])-score(a[1])).forEach(([cty, rs]) => {
         h += `<div class="grp">${cty}</div>`;
-        rs.sort((a,b)=>b.f.score-a.f.score).forEach(r => { h += r.tt ? `<div class="row tap" data-intl="${r.idx}"><div class="dst"><b>${r.city}</b><div class="al">${r.al}</div><div class="allyRow">${routeAllyTags(r.tt.flights)}</div></div><span class="freq ${r.tt.planned?"p":r.tt.badge?"w":"d"}">${r.tt.badge || r.tt.flights.length+"便"}</span><span class="go">›</span></div>` : `<div class="row"><div class="dst"><b>${r.city}</b><div class="al">${r.al}</div></div>${freqBadge(r.f)}</div>`; });
+        rs.sort((a,b)=>b.f.score-a.f.score).forEach(r => { h += r.tt ? `<div class="row tap" data-intl="${r.idx}"><div class="dst"><b>${r.city}</b><div class="al">${r.al}</div><div class="allyRow">${routeAllyTags(r.tt.flights)}</div></div><span class="freq ${r.tt.planned?"p":r.tt.badge?"w":"d"}">${r.tt.badge || r.tt.flights.length+"便"}</span><span class="go">›</span></div>` : `<div class="row"><div class="dst"><b>${r.city}</b><div class="al">${r.al}</div><div class="allyRow">${staticAllyTags(r.al)}</div></div>${freqBadge(r.f)}</div>`; });
       });
     });
   }
