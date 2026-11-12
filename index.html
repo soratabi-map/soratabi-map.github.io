@@ -1918,7 +1918,7 @@ function renderList(){
   document.getElementById("tIntl").classList.toggle("on", tab==="intl");
   const list = document.getElementById("sList"); let h = "";
   if (tab === "dom"){
-    const rows = [...DOM[current]].sort((a,b)=>b.f.score-a.f.score);
+    const rows = [...DOM[current]].sort((a,b)=>AIRPORTS[b.to][1]-AIRPORTS[a.to][1]); // 北から順
     if (!rows.length) h = `<div class="empty">定期便の国内線はありません。</div>`;
     rows.forEach(r => {
       const fls = TT[current]&&TT[current][r.to] ? TT[current][r.to].flatMap(f=>f.fl) : r.al.split("・").map(n => ({"JAL":"JAL1","ANA":"ANA1","JTA":"JTA1"}[n]||"X"));
